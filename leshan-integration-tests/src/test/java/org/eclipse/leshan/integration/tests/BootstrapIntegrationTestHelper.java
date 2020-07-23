@@ -42,6 +42,7 @@ import org.eclipse.leshan.client.object.Device;
 import org.eclipse.leshan.client.object.Security;
 import org.eclipse.leshan.client.resource.DummyInstanceEnabler;
 import org.eclipse.leshan.client.resource.ObjectsInitializer;
+import org.eclipse.leshan.core.CertificateUsage;
 import org.eclipse.leshan.core.LwM2mId;
 import org.eclipse.leshan.core.SecurityMode;
 import org.eclipse.leshan.core.request.BootstrapDiscoverRequest;
@@ -185,7 +186,7 @@ public class BootstrapIntegrationTestHelper extends SecureIntegrationTestHelper 
         // Create Security Object (with bootstrap server only)
         String bsUrl = "coap://" + bootstrapServer.getUnsecuredAddress().getHostString() + ":"
                 + bootstrapServer.getUnsecuredAddress().getPort();
-        return new Security(bsUrl, true, 3, new byte[0], new byte[0], new byte[0], 0);
+        return new Security(bsUrl, true, 3, new byte[0], new byte[0], new byte[0], 0, CertificateUsage.DOMAIN_ISSUER_CERTIFICATE.code);
     }
 
     @Override
