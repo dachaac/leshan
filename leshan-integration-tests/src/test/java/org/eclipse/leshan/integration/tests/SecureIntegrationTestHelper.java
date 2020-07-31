@@ -58,6 +58,7 @@ import org.eclipse.leshan.client.resource.DummyInstanceEnabler;
 import org.eclipse.leshan.client.resource.LwM2mObjectEnabler;
 import org.eclipse.leshan.client.resource.ObjectsInitializer;
 import org.eclipse.leshan.core.LwM2mId;
+import org.eclipse.leshan.core.californium.EndpointContextUtil;
 import org.eclipse.leshan.core.californium.EndpointFactory;
 import org.eclipse.leshan.core.request.BindingMode;
 import org.eclipse.leshan.core.util.Hex;
@@ -284,6 +285,12 @@ public class SecureIntegrationTestHelper extends IntegrationTestHelper {
         createRPKClient(false);
     }
 
+    public void setEndpointNameFromX509(X509Certificate certificate) {
+        String subjectDN = certificate.getSubjectDN().getName();
+        String endpointName = EndpointContextUtil.extractCN(subjectDN);
+        setCurrentEndpoint(endpointName);
+    }
+
     public void createX509CertClient() throws CertificateEncodingException {
         createX509CertClient(clientX509Cert, clientPrivateKeyFromCert, serverX509Cert);
     }
@@ -366,7 +373,7 @@ public class SecureIntegrationTestHelper extends IntegrationTestHelper {
             @Override
             protected boolean matchX509Identity(String endpoint, String receivedX509CommonName,
                     String expectedX509CommonName) {
-                return expectedX509CommonName.startsWith(receivedX509CommonName);
+                return expectedX509CommonName.equals(receivedX509CommonName);
             }
         }));
 
