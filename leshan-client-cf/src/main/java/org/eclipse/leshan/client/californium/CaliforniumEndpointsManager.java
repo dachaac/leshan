@@ -17,11 +17,14 @@ package org.eclipse.leshan.client.californium;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.GeneralSecurityException;
 import java.security.PublicKey;
+import java.security.cert.CertPath;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.eclipse.californium.core.CoapServer;
 import org.eclipse.californium.core.network.CoapEndpoint;
@@ -29,6 +32,7 @@ import org.eclipse.californium.core.network.Endpoint;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 import org.eclipse.californium.elements.Connector;
 import org.eclipse.californium.elements.auth.RawPublicKeyIdentity;
+import org.eclipse.californium.elements.util.CertPathUtil;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig.Builder;
 import org.eclipse.californium.scandium.dtls.AlertMessage;
@@ -44,6 +48,7 @@ import org.eclipse.leshan.client.EndpointsManager;
 import org.eclipse.leshan.client.servers.ServerIdentity;
 import org.eclipse.leshan.client.servers.ServerIdentity.Role;
 import org.eclipse.leshan.client.servers.ServerInfo;
+import org.eclipse.leshan.core.CertificateUsage;
 import org.eclipse.leshan.core.SecurityMode;
 import org.eclipse.leshan.core.californium.EndpointContextUtil;
 import org.eclipse.leshan.core.californium.EndpointFactory;
@@ -138,28 +143,124 @@ public class CaliforniumEndpointsManager implements EndpointsManager {
                 newBuilder.setIdentity(serverInfo.privateKey, new Certificate[] { serverInfo.clientCertificate });
 
                 // set X509 verifier
+
+                // LWM2M v1.1.1 - 5.2.8.7. Certificate Usage Field
+                //
+                // 0: Certificate usage 0 ("CA constraint")
+                // - trustStore is combination of client's configured trust store and provided certificate in server info
+                // - must do PKIX validation with trustStore to build certPath
+                // - must check that given certificate is part of certPath
+                //
+                // 1: Certificate usage 1 ("service certificate constraint")
+                // - trustStore is client's configured trust store
+                // - must do PKIX validation with trustStore
+                // - target certificate must match what is provided certificate in server info
+                //
+                // 2: Certificate usage 2 ("trust anchor assertion")
+                // - trustStore is only the provided certificate in server info
+                // - must do PKIX validation with trustStore
+                //
+                // 3: Certificate usage 3 ("domain-issued certificate") (default mode if missing)
+                // - no trustStore used in this mode
+                // - target certificate must match what is provided certificate in server info
+
+                final CertificateUsage certificateUsage = serverInfo.certificateUsage != null ?
+                        serverInfo.certificateUsage :
+                        CertificateUsage.DOMAIN_ISSUER_CERTIFICATE;
                 final Certificate expectedServerCertificate = serverInfo.serverCertificate;
+                X509Certificate[] newTrustedCertificates = null;
+                if (certificateUsage == CertificateUsage.CA_CONSTRAINT) {
+                    // - trustStore is combination of client's configured trust store and provided certificate in server info
+                    ArrayList<X509Certificate> newTrustedCertificatesList = new ArrayList<>(
+                            CertPathUtil.toX509CertificatesList(this.trustStore));
+                    if (serverInfo.serverCertificate instanceof X509Certificate) {
+                        newTrustedCertificatesList.add((X509Certificate) serverInfo.serverCertificate);
+                    }
+                    newTrustedCertificates = (X509Certificate[]) newTrustedCertificatesList.toArray();
+                } else if (certificateUsage == CertificateUsage.SERVICE_CERTIFICATE_CONSTRAINT) {
+                    // - trustStore is client's configured trust store
+                    newTrustedCertificates = (X509Certificate[]) CertPathUtil.toX509CertificatesList(this.trustStore)
+                            .toArray();
+                } else if (certificateUsage == CertificateUsage.TRUST_ANCHOR_ASSERTION) {
+                    // - trustStore is only the provided certificate in server info
+                    if (serverInfo.serverCertificate instanceof X509Certificate) {
+                        newTrustedCertificates = new X509Certificate[] {
+                                (X509Certificate) serverInfo.serverCertificate };
+                    }
+                }
+
+                final X509Certificate[] trustedCertificates = newTrustedCertificates;
+
                 newBuilder.setCertificateVerifier(new CertificateVerifier() {
 
                     @Override
                     public void verifyCertificate(CertificateMessage message, DTLSSession session)
                             throws HandshakeException {
-                        // As specify in the LWM2M spec 1.0, we only support "domain-issued certificate" usage
-                        // Defined in : https://tools.ietf.org/html/rfc6698#section-2.1.1 (3 -- Certificate usage 3)
+                        CertPath messageChain = message.getCertificateChain();
 
-                        // Get server certificate from certificate message
-                        if (message.getCertificateChain().getCertificates().size() == 0) {
+                        if (messageChain.getCertificates().size() == 0) {
                             AlertMessage alert = new AlertMessage(AlertLevel.FATAL, AlertDescription.BAD_CERTIFICATE,
                                     session.getPeer());
                             throw new HandshakeException("Certificate chain could not be validated", alert);
                         }
-                        Certificate receivedServerCertificate = message.getCertificateChain().getCertificates().get(0);
 
-                        // Validate certificate
-                        if (!expectedServerCertificate.equals(receivedServerCertificate)) {
+                        Certificate receivedServerCertificate = messageChain.getCertificates().get(0);
+                        if (!(receivedServerCertificate instanceof X509Certificate)) {
+                            AlertMessage alert = new AlertMessage(AlertLevel.FATAL,
+                                    AlertDescription.UNSUPPORTED_CERTIFICATE, session.getPeer());
+                            throw new HandshakeException(
+                                    "Certificate chain could not be validated - unknown certificate type", alert);
+                        }
+                        X509Certificate serverCertificate = (X509Certificate) receivedServerCertificate;
+
+                        CertPath certPath = null;
+                        if (trustedCertificates != null) {
+                            try {
+                                // - must do PKIX validation with trustStore
+                                certPath = CertPathUtil
+                                        .validateCertificatePath(false, messageChain, trustedCertificates);
+                            } catch (GeneralSecurityException e) {
+                                AlertMessage alert = new AlertMessage(AlertLevel.FATAL,
+                                        AlertDescription.BAD_CERTIFICATE, session.getPeer());
+                                throw new HandshakeException("Certificate chain could not be validated", alert, e);
+                            }
+                        }
+
+                        if (certificateUsage == CertificateUsage.CA_CONSTRAINT) {
+                            boolean found = false;
+
+                            // - must check that given certificate is part of certPath
+                            List<? extends Certificate> certificates = certPath.getCertificates();
+                            for (Certificate certificate : certificates) {
+                                if (certificate.equals(expectedServerCertificate)) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+
+                            if (!found) {
+                                // Np match found -> throw exception about it
+                                AlertMessage alert = new AlertMessage(AlertLevel.FATAL,
+                                        AlertDescription.BAD_CERTIFICATE, session.getPeer());
+                                throw new HandshakeException("Certificate chain could not be validated", alert);
+                            }
+                        } else if ((certificateUsage == CertificateUsage.SERVICE_CERTIFICATE_CONSTRAINT) || (
+                                certificateUsage == CertificateUsage.DOMAIN_ISSUER_CERTIFICATE)) {
+                            // - target certificate must match what is provided certificate in server info
+                            if (!expectedServerCertificate.equals(serverCertificate)) {
+                                AlertMessage alert = new AlertMessage(AlertLevel.FATAL,
+                                        AlertDescription.BAD_CERTIFICATE, session.getPeer());
+                                throw new HandshakeException("Certificate chain could not be validated", alert);
+                            }
+                        } else if (certificateUsage == CertificateUsage.TRUST_ANCHOR_ASSERTION) {
+                            // Nothing extra to check
+                        } else {
+                            // Not supported certificate usage
                             AlertMessage alert = new AlertMessage(AlertLevel.FATAL, AlertDescription.BAD_CERTIFICATE,
                                     session.getPeer());
-                            throw new HandshakeException("Certificate chain could not be validated", alert);
+                            throw new HandshakeException(
+                                    "Certificate chain could not be validated - not supported certificate usage",
+                                    alert);
                         }
                     }
 

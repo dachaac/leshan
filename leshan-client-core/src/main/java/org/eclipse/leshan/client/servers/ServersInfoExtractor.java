@@ -37,6 +37,7 @@ import java.util.Map;
 
 import org.eclipse.leshan.client.resource.LwM2mInstanceEnabler;
 import org.eclipse.leshan.client.resource.LwM2mObjectEnabler;
+import org.eclipse.leshan.core.CertificateUsage;
 import org.eclipse.leshan.core.LwM2mId;
 import org.eclipse.leshan.core.SecurityMode;
 import org.eclipse.leshan.core.node.LwM2mObject;
@@ -93,6 +94,7 @@ public class ServersInfoExtractor {
                             info.clientCertificate = getClientCertificate(security);
                             info.serverCertificate = getServerCertificate(security);
                             info.privateKey = getPrivateKey(security);
+                            info.certificateUsage = getCertificateUsage(security);
                         }
                         infos.bootstrap = info;
                     }
@@ -114,6 +116,7 @@ public class ServersInfoExtractor {
                         info.clientCertificate = getClientCertificate(security);
                         info.serverCertificate = getServerCertificate(security);
                         info.privateKey = getPrivateKey(security);
+                        info.certificateUsage = getCertificateUsage(security);
                     }
                     // search corresponding device management server
                     for (LwM2mObjectInstance server : servers.getInstances().values()) {
@@ -195,6 +198,10 @@ public class ServersInfoExtractor {
 
     public static SecurityMode getSecurityMode(LwM2mObjectInstance securityInstance) {
         return SecurityMode.fromCode((long) securityInstance.getResource(SEC_SECURITY_MODE).getValue());
+    }
+
+    public static CertificateUsage getCertificateUsage(LwM2mObjectInstance securityInstance) {
+        return CertificateUsage.fromCode((long) securityInstance.getResource(SEC_CERTIFICATE_USAGE).getValue());
     }
 
     public static String getPskIdentity(LwM2mObjectInstance securityInstance) {
