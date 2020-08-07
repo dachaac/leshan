@@ -140,7 +140,7 @@ public class CaliforniumEndpointsManager implements EndpointsManager {
                 serverIdentity = Identity.rpk(serverInfo.getAddress(), expectedKey);
             } else if (serverInfo.secureMode == SecurityMode.X509) {
                 // set identity
-                newBuilder.setIdentity(serverInfo.privateKey, new Certificate[] { serverInfo.clientCertificate });
+                newBuilder.setIdentity(serverInfo.privateKey, serverInfo.clientCertificateChain);
 
                 // set X509 verifier
 

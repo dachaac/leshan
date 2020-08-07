@@ -49,7 +49,11 @@ public class ServerInfo {
     public PublicKey publicKey;
     public PublicKey serverPublicKey;
 
+    /**
+     * @deprecated Use field {@link ServerInfo#clientCertificateChain} instead to specify client certificate.
+     */
     public Certificate clientCertificate;
+    public Certificate[] clientCertificateChain;
     public Certificate serverCertificate;
 
     public PrivateKey privateKey;

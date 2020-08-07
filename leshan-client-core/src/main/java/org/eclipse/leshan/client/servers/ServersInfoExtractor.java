@@ -92,6 +92,7 @@ public class ServersInfoExtractor {
                             info.serverPublicKey = getServerPublicKey(security);
                         } else if (info.secureMode == SecurityMode.X509) {
                             info.clientCertificate = getClientCertificate(security);
+                            info.clientCertificateChain = getClientCertificateChain(security);
                             info.serverCertificate = getServerCertificate(security);
                             info.privateKey = getPrivateKey(security);
                             info.certificateUsage = getCertificateUsage(security);
@@ -114,6 +115,7 @@ public class ServersInfoExtractor {
                         info.serverPublicKey = getServerPublicKey(security);
                     } else if (info.secureMode == SecurityMode.X509) {
                         info.clientCertificate = getClientCertificate(security);
+                        info.clientCertificateChain = getClientCertificateChain(security);
                         info.serverCertificate = getServerCertificate(security);
                         info.privateKey = getPrivateKey(security);
                         info.certificateUsage = getCertificateUsage(security);
@@ -264,6 +266,19 @@ public class ServersInfoExtractor {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             try (ByteArrayInputStream in = new ByteArrayInputStream(encodedCert)) {
                 return cf.generateCertificate(in);
+            }
+        } catch (CertificateException | IOException e) {
+            LOG.debug("Failed to decode X.509 certificate", e);
+            return null;
+        }
+    }
+
+    private static Certificate[] getClientCertificateChain(LwM2mObjectInstance securityInstance) {
+        byte[] encodedCert = (byte[]) securityInstance.getResource(SEC_PUBKEY_IDENTITY).getValue();
+        try {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            try (ByteArrayInputStream in = new ByteArrayInputStream(encodedCert)) {
+                return cf.generateCertificates(in).toArray(new Certificate[0]);
             }
         } catch (CertificateException | IOException e) {
             LOG.debug("Failed to decode X.509 certificate", e);
