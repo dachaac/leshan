@@ -22,18 +22,16 @@ import static org.eclipse.leshan.client.object.Security.*;
 import static org.eclipse.leshan.core.LwM2mId.*;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,6 +44,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 import org.eclipse.californium.elements.Connector;
+import org.eclipse.californium.elements.util.SslContextUtil;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.ClientHandshaker;
@@ -131,7 +130,7 @@ public class LeshanClientDemo {
 
     private static MyLocation locationInstance;
 
-    public static void main(final String[] args) {
+    public static void main(final String[] args) throws FileNotFoundException {
 
         // Define options for command line tools
         Options options = new Options();
@@ -208,6 +207,21 @@ public class LeshanClientDemo {
                 "The path to your client certificate file.\n The certificate Common Name (CN) should generaly be equal to the client endpoint name (see -n option).\nThe certificate should be in X509v3 format (DER encoding).");
         options.addOption("scert", true,
                 "The path to your server certificate file.\n The certificate should be in X509v3 format (DER encoding).");
+
+        final StringBuilder trustStoreChapter = new StringBuilder();
+        trustStoreChapter.append("\n .");
+        trustStoreChapter.append("\n URI format: file://<path-to-trust-store-file>#<hex-strore-password>#<alias-pattern>");
+        trustStoreChapter.append("\n .");
+        trustStoreChapter.append("\n Where:");
+        trustStoreChapter.append("\n - path-to-trust-store-file is path to pkcs12 trust store file");
+        trustStoreChapter.append("\n - hex-store-password is HEX formatted password for store");
+        trustStoreChapter.append("\n - alias-pattern can be used to filter trusted certificates and can also be empty to get all");
+        trustStoreChapter.append("\n .");
+        trustStoreChapter.append("\n Default: All certificates are trusted which is only OK for a demo.");
+
+        options.addOption("truststore", true,
+                "The path to a root certificate file to trust or a folder containing all the trusted certificates in X509v3 format (DER encoding) or trust store URI."
+                        + trustStoreChapter);
 
         HelpFormatter formatter = new HelpFormatter();
         formatter.setWidth(90);
@@ -413,6 +427,47 @@ public class LeshanClientDemo {
             }
         }
 
+        List<Certificate> trustStore = null;
+        if (cl.hasOption("truststore")) {
+            trustStore = new ArrayList<>();
+
+            String trustStoreName = cl.getOptionValue("truststore");
+
+            if (trustStoreName.startsWith("file://")) {
+                // Treat argument as Java trust store
+                try {
+                    Certificate[] trustedCertificates = SslContextUtil.loadTrustedCertificates(trustStoreName);
+                    trustStore.addAll(Arrays.asList(trustedCertificates));
+                } catch (Exception e) {
+                    System.err.println("Unable to load trust store : " + e.getMessage());
+                    e.printStackTrace();
+                    formatter.printHelp(USAGE, options);
+                }
+            } else {
+                // Treat argument as file or directory
+                File input = new File(cl.getOptionValue("truststore"));
+
+                // check input exists
+                if (!input.exists())
+                    throw new FileNotFoundException(input.toString());
+
+                // get input files.
+                File[] files;
+                if (input.isDirectory()) {
+                    files = input.listFiles();
+                } else {
+                    files = new File[] { input };
+                }
+                for (File file : files) {
+                    try {
+                        trustStore.add(SecurityUtil.certificate.readFromFile(file.getAbsolutePath()));
+                    } catch (Exception e) {
+                        LOG.warn("Unable to load X509 files {}:{} ", file.getAbsolutePath(), e.getMessage());
+                    }
+                }
+            }
+        }
+
         // get local address
         String localAddress = null;
         int localPort = 0;
@@ -460,9 +515,9 @@ public class LeshanClientDemo {
         try {
             createAndStartClient(endpoint, localAddress, localPort, cl.hasOption("b"), additionalAttributes,
                     bsAdditionalAttributes, lifetime, communicationPeriod, serverURI, pskIdentity, pskKey,
-                    clientPrivateKey, clientPublicKey, serverPublicKey, clientCertificate, serverCertificate, latitude,
-                    longitude, scaleFactor, cl.hasOption("ocf"), cl.hasOption("oc"), cl.hasOption("r"),
-                    cl.hasOption("f"), modelsFolderPath);
+                    clientPrivateKey, clientPublicKey, serverPublicKey, clientCertificate, serverCertificate,
+                    trustStore, latitude, longitude, scaleFactor, cl.hasOption("ocf"), cl.hasOption("oc"),
+                    cl.hasOption("r"), cl.hasOption("f"), modelsFolderPath);
         } catch (Exception e) {
             System.err.println("Unable to create and start client ...");
             e.printStackTrace();
@@ -474,9 +529,10 @@ public class LeshanClientDemo {
             Map<String, String> additionalAttributes, Map<String, String> bsAdditionalAttributes, int lifetime,
             Integer communicationPeriod, String serverURI, byte[] pskIdentity, byte[] pskKey,
             PrivateKey clientPrivateKey, PublicKey clientPublicKey, PublicKey serverPublicKey,
-            X509Certificate clientCertificate, X509Certificate serverCertificate, Float latitude, Float longitude,
-            float scaleFactor, boolean supportOldFormat, boolean supportDeprecatedCiphers, boolean reconnectOnUpdate,
-            boolean forceFullhandshake, String modelsFolderPath) throws CertificateEncodingException {
+            X509Certificate clientCertificate, X509Certificate serverCertificate, List<Certificate> trustStore,
+            Float latitude, Float longitude, float scaleFactor, boolean supportOldFormat,
+            boolean supportDeprecatedCiphers, boolean reconnectOnUpdate, boolean forceFullhandshake,
+            String modelsFolderPath) throws CertificateEncodingException {
 
         locationInstance = new MyLocation(latitude, longitude, scaleFactor);
 
