@@ -41,7 +41,7 @@ public class ResourceModel {
 
     // TODO in version 2.0 : NONE should be added.
     public enum Type {
-        STRING, INTEGER, FLOAT, BOOLEAN, OPAQUE, TIME, OBJLNK
+        STRING, INTEGER, FLOAT, BOOLEAN, OPAQUE, TIME, OBJLNK, UNSIGNED_INTEGER
     }
 
     // TODO in version 2.0 all field should be null-able and ObjectModelValidator should be responsible to validate it.

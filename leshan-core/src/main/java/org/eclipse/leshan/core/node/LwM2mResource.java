@@ -48,6 +48,7 @@ public interface LwM2mResource extends LwM2mNode {
      * If {@link #getType()} returns {@link Type#OPAQUE}, the value is a byte array.<br>
      * If {@link #getType()} returns {@link Type#TIME}, the value is a {@link Date}.<br>
      * If {@link #getType()} returns {@link Type#INTEGER}, the value is a {@link Long}.<br>
+     * If {@link #getType()} returns {@link Type#UNSIGNED_INTEGER}, the value is a {@link Long}.<br>
      * If {@link #getType()} returns {@link Type#FLOAT}, the value is a {@link Double}.<br>
      * 
      * @return the value of the resource.
@@ -64,6 +65,7 @@ public interface LwM2mResource extends LwM2mNode {
      * If {@link #getType()} returns {@link Type#OPAQUE}, the value is a byte array.<br>
      * If {@link #getType()} returns {@link Type#TIME}, the value is a {@link Date}.<br>
      * If {@link #getType()} returns {@link Type#INTEGER}, the value is a {@link Long}.<br>
+     * If {@link #getType()} returns {@link Type#UNSIGNED_INTEGER}, the value is a {@link Long}.<br>
      * If {@link #getType()} returns {@link Type#FLOAT}, the value is a {@link Double}.<br>
      * 
      * @return the values of each resource instances (key is the resource instance identifier).
@@ -80,6 +82,7 @@ public interface LwM2mResource extends LwM2mNode {
      * If {@link #getType()} returns {@link Type#OPAQUE}, the value is a byte array.<br>
      * If {@link #getType()} returns {@link Type#TIME}, the value is a {@link Date}.<br>
      * If {@link #getType()} returns {@link Type#INTEGER}, the value is a {@link Long}.<br>
+     * If {@link #getType()} returns {@link Type#UNSIGNED_INTEGER}, the value is a {@link Long}.<br>
      * If {@link #getType()} returns {@link Type#FLOAT}, the value is a {@link Double}.<br>
      * 
      * @return the value a resource instance with the given identifier.

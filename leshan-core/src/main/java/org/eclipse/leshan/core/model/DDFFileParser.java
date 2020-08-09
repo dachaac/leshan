@@ -349,6 +349,9 @@ public class DDFFileParser {
                 case "Objlnk":
                     type = Type.OBJLNK;
                     break;
+                case "Unsigned Integer":
+                    type = Type.UNSIGNED_INTEGER;
+                    break;
                 case "":
                     type = null;
                     break;

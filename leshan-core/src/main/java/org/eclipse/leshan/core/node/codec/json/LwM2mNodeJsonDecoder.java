@@ -392,6 +392,7 @@ public class LwM2mNodeJsonDecoder {
         try {
             switch (expectedType) {
             case INTEGER:
+            case UNSIGNED_INTEGER:
                 // JSON format specs said v = integer or float
                 return ((Number) value).longValue();
             case BOOLEAN:

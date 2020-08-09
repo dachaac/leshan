@@ -77,6 +77,9 @@ public class LwM2mMultipleResource implements LwM2mResource {
         case OBJLNK:
             LwM2mNodeUtil.allElementsOfType(values.values(), ObjectLink.class);
             break;
+        case UNSIGNED_INTEGER:
+            LwM2mNodeUtil.allElementsOfType(values.values(), Long.class);
+            break;
         default:
             throw new LwM2mNodeException(String.format("Type %s is not supported", type.name()));
         }
@@ -111,6 +114,11 @@ public class LwM2mMultipleResource implements LwM2mResource {
     public static LwM2mMultipleResource newObjectLinkResource(int id, Map<Integer, ObjectLink> values) {
         LwM2mNodeUtil.noNullElements(values.values());
         return new LwM2mMultipleResource(id, values, Type.OBJLNK);
+    }
+
+    public static LwM2mMultipleResource newUnsignedIntegerResource(int id, Map<Integer, Long> values) {
+        LwM2mNodeUtil.noNullElements(values.values());
+        return new LwM2mMultipleResource(id, values, Type.UNSIGNED_INTEGER);
     }
 
     public static LwM2mMultipleResource newBinaryResource(int id, Map<Integer, byte[]> values) {

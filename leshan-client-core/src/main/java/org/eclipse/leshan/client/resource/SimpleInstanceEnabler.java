@@ -141,6 +141,9 @@ public class SimpleInstanceEnabler extends BaseInstanceEnabler {
             case OPAQUE:
                 return LwM2mSingleResource.newBinaryResource(resourceModel.id,
                         createDefaultOpaqueValueFor(objectModel, resourceModel));
+            case UNSIGNED_INTEGER:
+                return LwM2mSingleResource.newUnsignedIntegerResource(resourceModel.id,
+                        createDefaultUnsignedIntegerValueFor(objectModel, resourceModel));
             default:
                 // this should not happened
                 return null;
@@ -184,5 +187,9 @@ public class SimpleInstanceEnabler extends BaseInstanceEnabler {
 
     protected byte[] createDefaultOpaqueValueFor(ObjectModel objectModel, ResourceModel resourceModel) {
         return new byte[0];
+    }
+
+    protected long createDefaultUnsignedIntegerValueFor(ObjectModel objectModel, ResourceModel resourceModel) {
+        return 0;
     }
 }

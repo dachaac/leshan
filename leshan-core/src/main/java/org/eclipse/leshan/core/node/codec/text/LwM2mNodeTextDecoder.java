@@ -101,6 +101,12 @@ public class LwM2mNodeTextDecoder {
                 throw new CodecException("Invalid value for opaque resource [%s], base64 expected", path);
             }
             return Base64.decodeBase64(value);
+        case UNSIGNED_INTEGER:
+            try {
+                return Long.valueOf(value);
+            } catch (NumberFormatException e) {
+                throw new CodecException("Invalid value [%s] for unsigned integer resource [%s]", value, path);
+            }
         default:
             throw new CodecException("Could not handle %s value with TEXT encoder for resource %s", type, path);
         }

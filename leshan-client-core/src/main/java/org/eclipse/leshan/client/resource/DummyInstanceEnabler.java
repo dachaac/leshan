@@ -86,6 +86,7 @@ public class DummyInstanceEnabler extends SimpleInstanceEnabler {
             values.put(1, createDefaultBooleanValueFor(objectModel, resourceModel));
             break;
         case INTEGER:
+        case UNSIGNED_INTEGER:
             values.put(0, createDefaultIntegerValueFor(objectModel, resourceModel));
             values.put(1, createDefaultIntegerValueFor(objectModel, resourceModel));
             break;

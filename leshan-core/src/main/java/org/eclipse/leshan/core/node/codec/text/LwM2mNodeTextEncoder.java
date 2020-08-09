@@ -91,6 +91,7 @@ public class LwM2mNodeTextEncoder {
             String strValue;
             switch (expectedType) {
             case INTEGER:
+            case UNSIGNED_INTEGER:
             case FLOAT:
             case STRING:
                 strValue = String.valueOf(val);

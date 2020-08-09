@@ -46,6 +46,7 @@ public class LwM2mSingleResource implements LwM2mResource {
         String doesNotMatchMessage = "Value does not match the given datatype";
         switch (type) {
         case INTEGER:
+        case UNSIGNED_INTEGER:
             if (!(value instanceof Long))
                 throw new LwM2mNodeException(doesNotMatchMessage);
             break;
@@ -106,6 +107,11 @@ public class LwM2mSingleResource implements LwM2mResource {
     public static LwM2mSingleResource newBinaryResource(int id, byte[] value) {
         return new LwM2mSingleResource(id, value, Type.OPAQUE);
     }
+
+    public static LwM2mSingleResource newUnsignedIntegerResource(int id, long value) {
+        return new LwM2mSingleResource(id, value, Type.UNSIGNED_INTEGER);
+    }
+
 
     /**
      * {@inheritDoc}

@@ -138,6 +138,7 @@ public class LwM2mNodeDeserializer implements JsonDeserializer<LwM2mNode> {
         case STRING:
             return val.getAsString();
         case INTEGER:
+        case UNSIGNED_INTEGER:
             return val.getAsLong();
         case FLOAT:
             return val.getAsDouble();

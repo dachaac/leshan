@@ -72,6 +72,7 @@ public class MagicLwM2mValueConverter implements LwM2mValueConverter {
         case FLOAT:
             switch (currentType) {
             case INTEGER:
+            case UNSIGNED_INTEGER:
                 LOG.debug("Trying to convert integer value {} to float", value);
                 Double floatValue = ((Long) value).doubleValue();
                 if ((long) value == floatValue.longValue()) {
@@ -92,6 +93,7 @@ public class MagicLwM2mValueConverter implements LwM2mValueConverter {
                 }
                 break;
             case INTEGER:
+            case UNSIGNED_INTEGER:
                 LOG.debug("Trying to convert int value {} to boolean", value);
                 Long val = (Long) value;
                 if (val == 1) {
@@ -107,6 +109,7 @@ public class MagicLwM2mValueConverter implements LwM2mValueConverter {
         case TIME:
             switch (currentType) {
             case INTEGER:
+            case UNSIGNED_INTEGER:
                 LOG.debug("Trying to convert long value {} to date", value);
                 // let's assume we received the millisecond since 1970/1/1
                 return new Date((Long) value);
@@ -130,6 +133,7 @@ public class MagicLwM2mValueConverter implements LwM2mValueConverter {
             switch (currentType) {
             case BOOLEAN:
             case INTEGER:
+            case UNSIGNED_INTEGER:
             case FLOAT:
                 return String.valueOf(value);
             default:
@@ -147,6 +151,26 @@ public class MagicLwM2mValueConverter implements LwM2mValueConverter {
                     throw new CodecException("Unable to convert hexastring [%s] to byte array for resource %s", value,
                             resourcePath);
                 }
+            }
+            break;
+        case UNSIGNED_INTEGER:
+            switch (currentType) {
+            case INTEGER:
+                LOG.debug("Trying to convert integer value {} to float", value);
+                Double floatValue = ((Long) value).doubleValue();
+                if ((long) value == floatValue.longValue()) {
+                    return floatValue;
+                }
+                break;
+            case FLOAT:
+                LOG.debug("Trying to convert float value {} to unsigned integer", value);
+                Long longValue = ((Double) value).longValue();
+                if ((double) value == longValue.doubleValue()) {
+                    return longValue;
+                }
+                break;
+            default:
+                break;
             }
             break;
         default:

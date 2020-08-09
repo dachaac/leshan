@@ -167,6 +167,7 @@ public class LwM2mNodeSenMLJsonEncoder {
                 record.setStringValue((String) value);
                 break;
             case INTEGER:
+            case UNSIGNED_INTEGER:
             case FLOAT:
                 record.setFloatValue((Number) value);
                 break;

@@ -240,6 +240,7 @@ public class LwM2mNodeTlvDecoder {
             case STRING:
                 return TlvDecoder.decodeString(value);
             case INTEGER:
+            case UNSIGNED_INTEGER:
                 return TlvDecoder.decodeInteger(value).longValue();
             case FLOAT:
                 return TlvDecoder.decodeFloat(value).doubleValue();

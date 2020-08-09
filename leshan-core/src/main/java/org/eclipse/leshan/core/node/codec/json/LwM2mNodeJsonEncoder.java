@@ -237,6 +237,7 @@ public class LwM2mNodeJsonEncoder {
                 jsonResource.setStringValue((String) value);
                 break;
             case INTEGER:
+            case UNSIGNED_INTEGER:
             case FLOAT:
                 jsonResource.setFloatValue((Number) value);
                 break;
