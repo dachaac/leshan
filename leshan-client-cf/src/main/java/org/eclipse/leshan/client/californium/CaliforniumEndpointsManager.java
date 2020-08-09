@@ -53,6 +53,7 @@ import org.eclipse.leshan.core.SecurityMode;
 import org.eclipse.leshan.core.californium.EndpointContextUtil;
 import org.eclipse.leshan.core.californium.EndpointFactory;
 import org.eclipse.leshan.core.request.Identity;
+import org.eclipse.leshan.core.util.X509CertUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,19 +151,23 @@ public class CaliforniumEndpointsManager implements EndpointsManager {
                 // - trustStore is combination of client's configured trust store and provided certificate in server info
                 // - must do PKIX validation with trustStore to build certPath
                 // - must check that given certificate is part of certPath
+                // - validate server name
                 //
                 // 1: Certificate usage 1 ("service certificate constraint")
                 // - trustStore is client's configured trust store
                 // - must do PKIX validation with trustStore
                 // - target certificate must match what is provided certificate in server info
+                // - validate server name
                 //
                 // 2: Certificate usage 2 ("trust anchor assertion")
                 // - trustStore is only the provided certificate in server info
                 // - must do PKIX validation with trustStore
+                // - validate server name
                 //
                 // 3: Certificate usage 3 ("domain-issued certificate") (default mode if missing)
                 // - no trustStore used in this mode
                 // - target certificate must match what is provided certificate in server info
+                // - validate server name
 
                 final CertificateUsage certificateUsage = serverInfo.certificateUsage != null ?
                         serverInfo.certificateUsage :
@@ -262,6 +267,26 @@ public class CaliforniumEndpointsManager implements EndpointsManager {
                                     "Certificate chain could not be validated - not supported certificate usage",
                                     alert);
                         }
+
+                        // - validate server name
+                        validateSubject(session, serverCertificate);
+                    }
+
+                    private void validateSubject(final DTLSSession session,
+                            final X509Certificate receivedServerCertificate) throws HandshakeException {
+                        final InetSocketAddress peerSocket = session.getPeer();
+
+                        if (X509CertUtil.matchSubjectDnsName(receivedServerCertificate, peerSocket.getHostName()))
+                            return;
+
+                        if (X509CertUtil.matchSubjectInetAddress(receivedServerCertificate, peerSocket.getAddress()))
+                            return;
+
+                        AlertMessage alert = new AlertMessage(AlertLevel.FATAL, AlertDescription.BAD_CERTIFICATE,
+                                session.getPeer());
+                        throw new HandshakeException(
+                                "Certificate chain could not be validated - server identity does not match certificate",
+                                alert);
                     }
 
                     @Override
