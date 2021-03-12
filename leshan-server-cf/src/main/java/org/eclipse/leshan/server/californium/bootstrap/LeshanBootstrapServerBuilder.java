@@ -53,6 +53,7 @@ import org.eclipse.leshan.server.bootstrap.DefaultBootstrapHandler;
 import org.eclipse.leshan.server.bootstrap.DefaultBootstrapSessionManager;
 import org.eclipse.leshan.server.bootstrap.InMemoryBootstrapConfigurationStore;
 import org.eclipse.leshan.server.bootstrap.LwM2mBootstrapRequestSender;
+import org.eclipse.leshan.server.est.CoapEstHandler;
 import org.eclipse.leshan.server.security.BootstrapSecurityStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,6 +90,8 @@ public class LeshanBootstrapServerBuilder {
     private EndpointFactory endpointFactory;
     private boolean noSecuredEndpoint;
     private boolean noUnsecuredEndpoint;
+
+    private CoapEstHandler coapEstHandler;
 
     /**
      * Set the address/port for unsecured CoAP communication (<code>coap://</code>).
@@ -357,6 +360,11 @@ public class LeshanBootstrapServerBuilder {
         return this;
     }
 
+    public LeshanBootstrapServerBuilder setCoapEstHandler(CoapEstHandler coapEstHandler) {
+        this.coapEstHandler = coapEstHandler;
+        return this;
+    }
+
     /**
      * Deactivate unsecured CoAP endpoint, meaning that <code>coap://</code> communication will be impossible.
      * 
@@ -566,8 +574,17 @@ public class LeshanBootstrapServerBuilder {
                     "All CoAP enpoints are deactivated, at least one endpoint should be activated");
         }
 
+        CoapEstHandler coapEstHandler = null;
+        if (this.coapEstHandler != null) {
+            if (securedEndpoint == null) {
+                throw new IllegalStateException(
+                        "Secure endpoint must be activated in order to serve EST");
+            }
+            coapEstHandler = this.coapEstHandler;
+        }
+
         return createBootstrapServer(unsecuredEndpoint, securedEndpoint, configStore, securityStore, sessionManager,
-                bootstrapHandlerFactory, model, coapConfig, encoder, decoder);
+                bootstrapHandlerFactory, model, coapConfig, encoder, decoder, coapEstHandler);
     }
 
     /**
@@ -599,8 +616,8 @@ public class LeshanBootstrapServerBuilder {
     protected LeshanBootstrapServer createBootstrapServer(CoapEndpoint unsecuredEndpoint, CoapEndpoint securedEndpoint,
             BootstrapConfigurationStore bsStore, BootstrapSecurityStore bsSecurityStore,
             BootstrapSessionManager bsSessionManager, BootstrapHandlerFactory bsHandlerFactory, LwM2mModel model,
-            NetworkConfig coapConfig, LwM2mNodeEncoder encoder, LwM2mNodeDecoder decoder) {
+            NetworkConfig coapConfig, LwM2mNodeEncoder encoder, LwM2mNodeDecoder decoder, CoapEstHandler coapEstHandler) {
         return new LeshanBootstrapServer(unsecuredEndpoint, securedEndpoint, bsStore, bsSecurityStore, bsSessionManager,
-                bsHandlerFactory, model, coapConfig, encoder, decoder);
+                bsHandlerFactory, model, coapConfig, encoder, decoder, coapEstHandler);
     }
 }
