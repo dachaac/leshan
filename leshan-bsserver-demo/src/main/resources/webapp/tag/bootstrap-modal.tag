@@ -26,7 +26,7 @@
                             <securityconfig-input   ref="lwserver" onchange={update} show={activetab.lwserver}
                                                     securi={ "coaps://" + location.hostname + ":5684" }
                                                     unsecuri= { "coap://" + location.hostname + ":5683" }
-                                                    secmode = { {no_sec:true, psk:true, rpk:true, x509:true} }
+                                                    secmode = { {no_sec:true, psk:true, rpk:true, x509:true, est:true} }
                                                     ></securityconfig-input>
                         </div>
                         <div>

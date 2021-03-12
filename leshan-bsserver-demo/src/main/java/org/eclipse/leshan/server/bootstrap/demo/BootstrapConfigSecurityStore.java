@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * A {@link BootstrapSecurityStore} which uses a {@link BootstrapConfigStore} to device credentials.
  * <p>
  * Generally, a {@link BootstrapSecurityStore} contains information about how a device should connect to server (using
- * psk, rpk or x509 ). And a {@link BootstrapConfigStore} contains configuration which should be written on device
+ * psk, rpk, x509 or est). And a {@link BootstrapConfigStore} contains configuration which should be written on device
  * during bootstrap session.
  * <p>
  * This {@link BootstrapSecurityStore} will search in {@link BootstrapConfigStore} to find security info.
@@ -114,6 +114,11 @@ public class BootstrapConfigSecurityStore implements BootstrapSecurityStore {
             // Extract X509 security info
             else if (value.bootstrapServer && value.securityMode == SecurityMode.X509) {
                 SecurityInfo securityInfo = SecurityInfo.newX509CertInfo(endpoint);
+                return Arrays.asList(securityInfo).iterator();
+            }
+            // Extract X509 mode with EST security info
+            else if (value.bootstrapServer && value.securityMode == SecurityMode.EST) {
+                SecurityInfo securityInfo = SecurityInfo.newESTInfo(endpoint);
                 return Arrays.asList(securityInfo).iterator();
             }
         }

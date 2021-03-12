@@ -16,6 +16,7 @@
                 <option value="psk"    show={secmode.psk}    >Pre-Shared Key</option>
                 <option value="rpk"    show={secmode.rpk}    >Raw Public Key</option>
                 <option value="x509"   show={secmode.x509}   >X.509 Certificate</option>
+                <option value="est"    show={secmode.est}    >X.509 Certificate with EST</option>
             </select>
         </div>
     </div>
@@ -33,6 +34,11 @@
     <!-- X509 -->
     <div if={  refs.secMode.value == "x509" } >
         <x509-input ref="x509" onchange={onchange} disable={disable} servercertificate={servercertificate}></x509-input>
+    </div>
+
+    <!-- EST -->
+    <div if={  refs.secMode.value == "est" } >
+    <est-input ref="est" onchange={onchange} disable={disable} servercertificate={servercertificate}></est-input>
     </div>
 
     <div class="form-group">
@@ -76,7 +82,8 @@
         function has_error() {
             return tag.refs.secMode.value === "psk"  && tag.refs.psk.has_error()
                 || tag.refs.secMode.value === "rpk"  && tag.refs.rpk.has_error()
-                || tag.refs.secMode.value === "x509" && tag.refs.x509.has_error();
+                || tag.refs.secMode.value === "x509" && tag.refs.x509.has_error()
+                || tag.refs.secMode.value === "est" && tag.refs.est.has_error();
         }
 
         function get_value() {
@@ -110,6 +117,9 @@
                 config.id = fromHex(x509.cert);
                 config.key = fromHex(x509.key);
                 config.serverKey = fromHex(x509.servCert);
+            } else if(config.secmode === "EST"){
+                var est = tag.refs.est.get_value();
+                config.serverKey = fromHex(est.servCert);
             }
 
             // set Certificate Usage
