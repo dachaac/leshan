@@ -48,6 +48,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 import org.eclipse.californium.elements.Connector;
+import org.eclipse.californium.elements.util.CertPathUtil;
 import org.eclipse.californium.elements.util.SslContextUtil;
 import org.eclipse.californium.elements.util.StandardCharsets;
 import org.eclipse.californium.scandium.DTLSConnector;
@@ -658,6 +659,24 @@ public class LeshanClientDemo {
         dtlsConfig.setRecommendedCipherSuitesOnly(!supportDeprecatedCiphers);
         if (ciphers != null) {
             dtlsConfig.setSupportedCipherSuites(ciphers);
+        }
+
+        // Autodetect serverOnly and clientOnly
+        if (clientCertificateChain != null) {
+            X509Certificate certificate = clientCertificateChain[0];
+            if (CertPathUtil.canBeUsedForAuthentication(certificate, true)) {
+                if (CertPathUtil.canBeUsedForAuthentication(certificate, false)) {
+                    // Has both serverAuth and clientAuth
+                    LOG.info("Provided TLS client certificate has both clientAuth and serverAuth specified");
+                } else {
+                    // Has only clientAuth
+                    LOG.info("Provided TLS client certificate has clientAuth specified");
+                    dtlsConfig.setClientOnly();
+                }
+            } else {
+                // Not really suitable certificate for client usage
+                LOG.warn("Provided TLS client certificate does not have clientAuth specified");
+            }
         }
 
         // Configure Registration Engine
