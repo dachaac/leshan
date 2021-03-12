@@ -21,6 +21,7 @@ package org.eclipse.leshan.server.bootstrap.demo;
 import java.io.File;
 import java.net.BindException;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
@@ -47,6 +48,8 @@ import org.eclipse.leshan.core.model.ObjectModel;
 import org.eclipse.leshan.core.model.StaticModel;
 import org.eclipse.leshan.core.util.SecurityUtil;
 import org.eclipse.leshan.server.bootstrap.BootstrapConfigurationStoreAdapter;
+import org.eclipse.leshan.server.bootstrap.demo.est.CoapEstRegistrarHandler;
+import org.eclipse.leshan.server.bootstrap.demo.est.EstRegistrarConfig;
 import org.eclipse.leshan.server.bootstrap.demo.servlet.BootstrapServlet;
 import org.eclipse.leshan.server.bootstrap.demo.servlet.ServerServlet;
 import org.eclipse.leshan.server.californium.LeshanServerBuilder;
@@ -137,6 +140,19 @@ public class LeshanBootstrapServerDemo {
                 "The path to a root certificate file to trust or a folder containing all the trusted certificates in X509v3 format (DER encoding) or trust store URI."
                         + trustStoreChapter);
 
+        options.addOption(null, "est-server", true,
+                "EST server's base address.\nExample base address: https://localhost:443/.well-known/est/");
+        options.addOption(null, "est-truststore", true,
+                "Trust store used to verify EST server. See -truststore for details.");
+        options.addOption(null, "est-cprik", true,
+                "The path to your EST registrar's client certificate's private key file.\nThe private key should be in PKCS#8 format (DER encoding).");
+        options.addOption(null, "est-ccert", true,
+                "The path to your EST registrar's client certificate file.\nThe certificate should be in X509v3 format (DER encoding).");
+        options.addOption(null, "est-user", true,
+                "EST registrar's user name for EST server authentication when using Basic Auth.");
+        options.addOption(null, "est-pass", true,
+                "EST registrar's password for EST server authentication when using Basic Auth.");
+
         HelpFormatter formatter = new HelpFormatter();
         formatter.setWidth(120);
         formatter.setOptionComparator(null);
@@ -192,6 +208,33 @@ public class LeshanBootstrapServerDemo {
         if (cl.hasOption("prik")) {
             if (!rpkConfig && !x509Config) {
                 System.err.println("prik should be used with cert for X509 config OR pubk for RPK config");
+                formatter.printHelp(USAGE, options);
+                return;
+            }
+        }
+
+        boolean estClientCertificateConfig = false;
+
+        if (cl.hasOption("est-ccert")) {
+            if (!cl.hasOption("est-cprik")) {
+                System.err.println("est-ccert, est-cprik should be used together when connecting to EST server");
+                formatter.printHelp(USAGE, options);
+                return;
+            } else {
+                estClientCertificateConfig = true;
+            }
+        }
+
+        if (cl.hasOption("est-user")) {
+            if (estClientCertificateConfig) {
+                System.err.println(
+                        "Basic Auth and Client Certificate Authentication should not be used together when connecting to EST server");
+                formatter.printHelp(USAGE, options);
+                return;
+            }
+
+            if (!cl.hasOption("est-pass")) {
+                System.err.println("est-user, est-pass should be used together when connecting to EST server");
                 formatter.printHelp(USAGE, options);
                 return;
             }
@@ -259,6 +302,21 @@ public class LeshanBootstrapServerDemo {
             }
         }
 
+        // get EST's X509 client certificate
+        X509Certificate[] estClientCertificate = null;
+        PrivateKey estClientPrivateKey = null;
+        if (estClientCertificateConfig) {
+            try {
+                estClientPrivateKey = SecurityUtil.privateKey.readFromFile(cl.getOptionValue("est-cprik"));
+                estClientCertificate = SecurityUtil.certificateChain.readFromFile(cl.getOptionValue("est-ccert"));
+            } catch (Exception e) {
+                System.err.println("Unable to load X509 files : " + e.getMessage());
+                e.printStackTrace();
+                formatter.printHelp(USAGE, options);
+                return;
+            }
+        }
+
         // configure trust store if given
         List<Certificate> trustStore = null;
         if (cl.hasOption("truststore")) {
@@ -305,10 +363,78 @@ public class LeshanBootstrapServerDemo {
             }
         }
 
+        // get EST server's trust store
+        List<Certificate> estTrustStore = null;
+        if (cl.hasOption("est-truststore")) {
+            estTrustStore = new ArrayList<>();
+
+            String trustStoreName = cl.getOptionValue("est-truststore");
+
+            if (trustStoreName.startsWith("file://")) {
+                // Treat argument as Java trust store
+                try {
+                    Certificate[] trustedCertificates = SslContextUtil.loadTrustedCertificates(trustStoreName);
+                    estTrustStore.addAll(Arrays.asList(trustedCertificates));
+                } catch (Exception e) {
+                    System.err.println("Failed to load EST trust store : " + e.getMessage());
+                    e.printStackTrace();
+                    formatter.printHelp(USAGE, options);
+                    return;
+                }
+            } else {
+                // Treat argument as file or directory
+                File input = new File(cl.getOptionValue("est-truststore"));
+
+                // check input exists
+                if (!input.exists()) {
+                    System.err.println("Failed to load EST trust store - file or directory does not exist : " + input.toString());
+                    formatter.printHelp(USAGE, options);
+                    return;
+                }
+
+                // get input files.
+                File[] files;
+                if (input.isDirectory()) {
+                    files = input.listFiles();
+                } else {
+                    files = new File[] { input };
+                }
+                for (File file : files) {
+                    try {
+                        estTrustStore.add(SecurityUtil.certificate.readFromFile(file.getAbsolutePath()));
+                    } catch (Exception e) {
+                        LOG.warn("Unable to load X509 files {} : {} ", file.getAbsolutePath(), e.getMessage());
+                    }
+                }
+            }
+        }
+
+        EstRegistrarConfig estRegistrarConfig = null;
+
+        if (cl.hasOption("est-server")) {
+            if (estClientCertificate == null && !cl.hasOption("est-user")) {
+                System.err.println("Either Client Certificate or Basic Auth must be used when connecting to EST server");
+                formatter.printHelp(USAGE, options);
+                return;
+            }
+
+            estRegistrarConfig = new EstRegistrarConfig();
+
+            estRegistrarConfig.estBaseUri = URI.create(cl.getOptionValue("est-server"));
+
+            estRegistrarConfig.trustStore = estTrustStore;
+
+            estRegistrarConfig.estClientCertificate = estClientCertificate;
+            estRegistrarConfig.estClientPrivateKey = estClientPrivateKey;
+
+            estRegistrarConfig.username = cl.getOptionValue("est-user");
+            estRegistrarConfig.password = cl.getOptionValue("est-pass");
+        }
+
         try {
             createAndStartServer(webAddress, webPort, localAddress, localPort, secureLocalAddress, secureLocalPort,
                     modelsFolderPath, configFilename, cl.hasOption("oc"), publicKey, privateKey, certificate,
-                    trustStore);
+                    trustStore, estRegistrarConfig);
         } catch (BindException e) {
             System.err.println(String
                     .format("Web port %s is already in use, you can change it using the 'webport' option.", webPort));
@@ -321,7 +447,7 @@ public class LeshanBootstrapServerDemo {
     public static void createAndStartServer(String webAddress, int webPort, String localAddress, Integer localPort,
             String secureLocalAddress, Integer secureLocalPort, String modelsFolderPath, String configFilename,
             boolean supportDeprecatedCiphers, PublicKey publicKey, PrivateKey privateKey, X509Certificate certificate,
-            List<Certificate> trustStore) throws Exception {
+            List<Certificate> trustStore, EstRegistrarConfig estRegistrarConfig) throws Exception {
         // Create Models
         List<ObjectModel> models = ObjectLoader.loadDefault();
         if (modelsFolderPath != null) {
@@ -394,6 +520,10 @@ public class LeshanBootstrapServerDemo {
         builder.setLocalSecureAddress(secureLocalAddress,
                 secureLocalPort == null ? coapConfig.getInt(Keys.COAP_SECURE_PORT, LwM2m.DEFAULT_COAP_SECURE_PORT)
                         : secureLocalPort);
+
+        if (estRegistrarConfig != null) {
+            builder.setCoapEstHandler(new CoapEstRegistrarHandler(estRegistrarConfig));
+        }
 
         LeshanBootstrapServer bsServer = builder.build();
         bsServer.start();
