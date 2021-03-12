@@ -18,6 +18,7 @@ package org.eclipse.leshan.server.security;
 import java.io.Serializable;
 import java.security.PublicKey;
 import java.util.Arrays;
+import java.util.Objects;
 
 import org.eclipse.leshan.core.util.Validate;
 
@@ -50,14 +51,18 @@ public class SecurityInfo implements Serializable {
     // X.509
     private final boolean useX509Cert;
 
+    // EST
+    private final boolean useEST;
+
     private SecurityInfo(String endpoint, String identity, byte[] preSharedKey, PublicKey rawPublicKey,
-            boolean useX509Cert) {
+            boolean useX509Cert, boolean useEST) {
         Validate.notEmpty(endpoint);
         this.endpoint = endpoint;
         this.identity = identity;
         this.preSharedKey = preSharedKey;
         this.rawPublicKey = rawPublicKey;
         this.useX509Cert = useX509Cert;
+        this.useEST = useEST;
     }
 
     /**
@@ -72,7 +77,7 @@ public class SecurityInfo implements Serializable {
     public static SecurityInfo newPreSharedKeyInfo(String endpoint, String identity, byte[] preSharedKey) {
         Validate.notEmpty(identity);
         Validate.notNull(preSharedKey);
-        return new SecurityInfo(endpoint, identity, preSharedKey, null, false);
+        return new SecurityInfo(endpoint, identity, preSharedKey, null, false, false);
     }
 
     /**
@@ -85,7 +90,7 @@ public class SecurityInfo implements Serializable {
      */
     public static SecurityInfo newRawPublicKeyInfo(String endpoint, PublicKey rawPublicKey) {
         Validate.notNull(rawPublicKey);
-        return new SecurityInfo(endpoint, null, null, rawPublicKey, false);
+        return new SecurityInfo(endpoint, null, null, rawPublicKey, false, false);
     }
 
     /**
@@ -98,7 +103,20 @@ public class SecurityInfo implements Serializable {
      * @return a X.509 Security Info.
      */
     public static SecurityInfo newX509CertInfo(String endpoint) {
-        return new SecurityInfo(endpoint, null, null, null, true);
+        return new SecurityInfo(endpoint, null, null, null, true, false);
+    }
+
+    /**
+     * Construct a {@link SecurityInfo} meaning that client with given endpoint name should authenticate itself using
+     * X.509 mode with EST trusted X.509 Certificate.
+     * <p>
+     * By default, the certificate Common Name (CN) MUST match the endpoint name.
+     *
+     * @param endpoint the endpont name of the client.
+     * @return a EST Security Info.
+     */
+    public static SecurityInfo newESTInfo(String endpoint) {
+        return new SecurityInfo(endpoint, null, null, null, false, true);
     }
 
     /**
@@ -152,54 +170,37 @@ public class SecurityInfo implements Serializable {
         return useX509Cert;
     }
 
+    /**
+     * @return <code>true</code> if this client should use X.509 mode with EST authentication.
+     */
+    public boolean useEST() {
+        return useEST;
+    }
+
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((endpoint == null) ? 0 : endpoint.hashCode());
-        result = prime * result + ((identity == null) ? 0 : identity.hashCode());
-        result = prime * result + Arrays.hashCode(preSharedKey);
-        result = prime * result + ((rawPublicKey == null) ? 0 : rawPublicKey.hashCode());
-        result = prime * result + (useX509Cert ? 1231 : 1237);
+        int result = Objects.hash(endpoint, identity, rawPublicKey, useX509Cert, useEST);
+        result = 31 * result + Arrays.hashCode(preSharedKey);
         return result;
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
+    public boolean equals(Object o) {
+        if (this == o)
             return true;
-        if (obj == null)
+        if (o == null || getClass() != o.getClass())
             return false;
-        if (getClass() != obj.getClass())
-            return false;
-        SecurityInfo other = (SecurityInfo) obj;
-        if (endpoint == null) {
-            if (other.endpoint != null)
-                return false;
-        } else if (!endpoint.equals(other.endpoint))
-            return false;
-        if (identity == null) {
-            if (other.identity != null)
-                return false;
-        } else if (!identity.equals(other.identity))
-            return false;
-        if (!Arrays.equals(preSharedKey, other.preSharedKey))
-            return false;
-        if (rawPublicKey == null) {
-            if (other.rawPublicKey != null)
-                return false;
-        } else if (!rawPublicKey.equals(other.rawPublicKey))
-            return false;
-        if (useX509Cert != other.useX509Cert)
-            return false;
-        return true;
+        SecurityInfo that = (SecurityInfo) o;
+        return (useX509Cert == that.useX509Cert) && (useEST == that.useEST) && Objects.equals(endpoint, that.endpoint)
+                && Objects.equals(identity, that.identity) && Arrays.equals(preSharedKey, that.preSharedKey) && Objects
+                .equals(rawPublicKey, that.rawPublicKey);
     }
 
     @Override
     public String toString() {
         // Note : preSharedKey is explicitly excluded from display for security purposes
-        return String.format("SecurityInfo [endpoint=%s, identity=%s, rawPublicKey=%s, useX509Cert=%s]", endpoint,
-                identity, rawPublicKey, useX509Cert);
+        return String.format("SecurityInfo [endpoint=%s, identity=%s, rawPublicKey=%s, useX509Cert=%s, useEST=%s]", endpoint,
+                identity, rawPublicKey, useX509Cert, useEST);
     }
 
 }
