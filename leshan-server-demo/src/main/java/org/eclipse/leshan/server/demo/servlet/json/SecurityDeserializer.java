@@ -64,6 +64,7 @@ public class SecurityDeserializer implements JsonDeserializer<SecurityInfo> {
             JsonObject psk = (JsonObject) object.get("psk");
             JsonObject rpk = (JsonObject) object.get("rpk");
             JsonPrimitive x509 = object.getAsJsonPrimitive("x509");
+            JsonPrimitive est = object.getAsJsonPrimitive("est");
             if (psk != null) {
                 // PSK Deserialization
                 String identity;
@@ -108,6 +109,8 @@ public class SecurityDeserializer implements JsonDeserializer<SecurityInfo> {
                 info = SecurityInfo.newRawPublicKeyInfo(endpoint, key);
             } else if (x509 != null && x509.getAsBoolean()) {
                 info = SecurityInfo.newX509CertInfo(endpoint);
+            } else if (est != null && est.getAsBoolean()) {
+                info = SecurityInfo.newESTInfo(endpoint);
             } else {
                 throw new JsonParseException("Invalid security info content");
             }

@@ -63,6 +63,8 @@
 			</td>
 			<td ng-if="security.x509">X.509</td>
 			<td ng-if="security.x509">Uses X.509 certificate</td>
+			<td ng-if="security.est">EST</td>
+			<td ng-if="security.est">Uses X.509 certificate mode with EST</td>
 			<td><button type="button" class="btn btn-default btn-xs" ng-click="remove(endpoint)">
 					<span class="glyphicon glyphicon-remove"></button></td>
 		</tr>
@@ -98,6 +100,7 @@
 								<option value="psk">Pre-Shared Key</option>
 								<option value="rpk">Raw Public Key</option>
 								<option value="x509">X.509 Certificate</option>
+								<option value="est">X.509 Certificate mode with EST</option>
 							</select>
 						</div>
 					</div>
@@ -138,6 +141,8 @@
 					</div>
 
 					<!-- Certificates input (nothing) -->
+
+					<!-- Certificates mode with EST input (nothing) -->
 
 				</form>
 			</div>
