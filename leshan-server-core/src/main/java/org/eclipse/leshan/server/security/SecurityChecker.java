@@ -92,7 +92,12 @@ public class SecurityChecker {
 
             } else if (clientIdentity.isX509()) {
 
-                return checkX509Identity(endpoint, clientIdentity, securityInfo);
+                if (securityInfo.useX509Cert() || securityInfo.useEST()) {
+                    return checkX509Identity(endpoint, clientIdentity, securityInfo);
+                } else {
+                    LOG.debug("Client '{}' is not supposed to use X509 certificate to authenticate", endpoint);
+                    return false;
+                }
 
             } else {
                 LOG.debug("Unable to authenticate client '{}': unknown authentication mode", endpoint);
@@ -163,11 +168,6 @@ public class SecurityChecker {
     protected boolean checkX509Identity(String endpoint, Identity clientIdentity, SecurityInfo securityInfo) {
         // Manage X509 certificate authentication
         // ----------------------------------------------------
-        if (!securityInfo.useX509Cert()) {
-            LOG.debug("Client '{}' is not supposed to use X509 certificate to authenticate", endpoint);
-            return false;
-        }
-
         if (!matchX509Identity(endpoint, clientIdentity.getX509CommonName(), endpoint)) {
             return false;
         }
