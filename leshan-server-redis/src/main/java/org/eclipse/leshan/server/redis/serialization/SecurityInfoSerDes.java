@@ -77,6 +77,10 @@ public class SecurityInfoSerDes {
             o.set("x509", true);
         }
 
+        if (s.useEST()) {
+            o.set("est", true);
+        }
+
         return o.toString().getBytes();
     }
 
@@ -90,6 +94,8 @@ public class SecurityInfoSerDes {
                     Hex.decodeHex(o.getString("psk", null).toCharArray()));
         } else if (o.get("x509") != null) {
             i = SecurityInfo.newX509CertInfo(ep);
+        } else if (o.get("est") != null) {
+            i = SecurityInfo.newESTInfo(ep);
         } else {
             JsonObject rpk = (JsonObject) o.get("rpk");
             PublicKey key;
