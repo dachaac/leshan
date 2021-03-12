@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2013-2015 Sierra Wireless and others.
+ * Copyright (c) 2016 Sierra Wireless and others.
  * 
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
@@ -13,23 +13,18 @@
  * Contributors:
  *     Sierra Wireless - initial API and implementation
  *******************************************************************************/
-package org.eclipse.leshan.core.request;
+package org.eclipse.leshan.client.est;
 
 /**
- * A visitor to visit an Uplink Lightweight M2M request.
+ * Listen for bootstrap session event.
  */
-public interface UplinkRequestVisitor {
-    void visit(RegisterRequest request);
+public interface EstListener {
 
-    void visit(UpdateRequest request);
-
-    void visit(DeregisterRequest request);
-
-    void visit(BootstrapRequest request);
-
-    void visit(SendRequest sendRequest);
-
-    void visit(EstCaCertsRequest request);
-
-    void visit(EstSimpleEnrollRequest request);
+    /**
+     * Invoked when a bootstrap session is closed.<br>
+     * 
+     * Generally when we receive a bootstrap finished request or when the bootstrap session ends in an unexpected
+     * way.(e.g. bootstrap server is not responding anymore)
+     */
+    void estFinished();
 }

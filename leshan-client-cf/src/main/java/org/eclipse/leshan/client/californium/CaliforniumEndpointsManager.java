@@ -121,7 +121,7 @@ public class CaliforniumEndpointsManager implements EndpointsManager {
                 serverIdentity = Identity.rpk(serverInfo.getAddress(), expectedKey);
                 filterCipherSuites(newBuilder, dtlsConfigbuilder.getIncompleteConfig().getSupportedCipherSuites(),
                         false, true);
-            } else if (serverInfo.secureMode == SecurityMode.X509) {
+            } else if ((serverInfo.secureMode == SecurityMode.X509) || (serverInfo.secureMode == SecurityMode.EST)) {
                 // set identity
                 newBuilder.setIdentity(serverInfo.privateKey, serverInfo.clientCertificateChain);
 

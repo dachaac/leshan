@@ -97,6 +97,11 @@ public class ServersInfoExtractor {
                             info.serverCertificate = getServerCertificate(security);
                             info.privateKey = getPrivateKey(security);
                             info.certificateUsage = getCertificateUsage(security);
+                        } else if (info.secureMode == SecurityMode.EST) {
+                            info.clientCertificateChain = getClientCertificateChain(security);
+                            info.serverCertificate = getServerCertificate(security);
+                            info.privateKey = getPrivateKey(security);
+                            info.certificateUsage = getCertificateUsage(security);
                         }
                         infos.bootstrap = info;
                     }
@@ -118,6 +123,10 @@ public class ServersInfoExtractor {
                         info.clientCertificateChain = getClientCertificateChain(security);
                         info.serverCertificate = getServerCertificate(security);
                         info.privateKey = getPrivateKey(security);
+                        info.certificateUsage = getCertificateUsage(security);
+                    } else if (info.secureMode == SecurityMode.EST) {
+                        info.clientCertificateChain = getClientCertificateChain(security);
+                        info.serverCertificate = getServerCertificate(security);
                         info.certificateUsage = getCertificateUsage(security);
                     }
                     // search corresponding device management server

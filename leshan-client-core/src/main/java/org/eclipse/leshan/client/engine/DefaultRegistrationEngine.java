@@ -15,12 +15,13 @@
  *******************************************************************************/
 package org.eclipse.leshan.client.engine;
 
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.lang.reflect.Array;
+import java.security.*;
+import java.security.cert.*;
+import java.security.cert.Certificate;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -32,6 +33,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.leshan.client.EndpointsManager;
 import org.eclipse.leshan.client.RegistrationUpdate;
 import org.eclipse.leshan.client.bootstrap.BootstrapHandler;
+import org.eclipse.leshan.client.est.EstClientOperations;
+import org.eclipse.leshan.client.est.EstDeviceSettings;
+import org.eclipse.leshan.client.est.EstHandler;
 import org.eclipse.leshan.client.observer.LwM2mClientObserver;
 import org.eclipse.leshan.client.request.LwM2mRequestSender;
 import org.eclipse.leshan.client.resource.LwM2mObjectEnabler;
@@ -44,21 +48,17 @@ import org.eclipse.leshan.client.util.LinkFormatHelper;
 import org.eclipse.leshan.core.LwM2m.Version;
 import org.eclipse.leshan.core.LwM2mId;
 import org.eclipse.leshan.core.ResponseCode;
-import org.eclipse.leshan.core.request.BindingMode;
-import org.eclipse.leshan.core.request.BootstrapRequest;
-import org.eclipse.leshan.core.request.ContentFormat;
-import org.eclipse.leshan.core.request.DeregisterRequest;
+import org.eclipse.leshan.core.SecurityMode;
+import org.eclipse.leshan.core.request.*;
 import org.eclipse.leshan.core.request.Identity;
-import org.eclipse.leshan.core.request.RegisterRequest;
-import org.eclipse.leshan.core.request.UpdateRequest;
 import org.eclipse.leshan.core.request.exception.SendFailedException;
-import org.eclipse.leshan.core.response.BootstrapResponse;
-import org.eclipse.leshan.core.response.DeregisterResponse;
-import org.eclipse.leshan.core.response.RegisterResponse;
-import org.eclipse.leshan.core.response.UpdateResponse;
+import org.eclipse.leshan.core.response.*;
 import org.eclipse.leshan.core.util.NamedThreadFactory;
+import org.eclipse.leshan.core.util.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.security.auth.x500.X500Principal;
 
 /**
  * Manage the registration life-cycle:
@@ -108,10 +108,12 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
     private final Map<String /* registrationId */, ServerIdentity> registeredServers;
     private final List<ServerIdentity> registeringServers;
     private final AtomicReference<ServerIdentity> currentBoostrapServer;
+    private final EstClientOperations estClientOperations;
 
     // helpers
     private final LwM2mRequestSender sender;
     private final BootstrapHandler bootstrapHandler;
+    private final EstHandler estHandler;
     private final EndpointsManager endpointsManager;
     private final LwM2mClientObserver observer;
 
@@ -131,7 +133,7 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
             Integer communicationPeriodInMs, boolean reconnectOnUpdate, boolean resumeOnConnect) {
         this(endpoint, objectTree, endpointsManager, requestSender, bootstrapState, observer, additionalAttributes,
                 null, executor, requestTimeoutInMs, deregistrationTimeoutInMs, bootstrapSessionTimeoutInSec,
-                retryWaitingTimeInMs, communicationPeriodInMs, reconnectOnUpdate, resumeOnConnect, false, null);
+                retryWaitingTimeInMs, communicationPeriodInMs, reconnectOnUpdate, resumeOnConnect, false, null, null);
     }
 
     /** @since 1.1 */
@@ -141,7 +143,7 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
             ScheduledExecutorService executor, long requestTimeoutInMs, long deregistrationTimeoutInMs,
             int bootstrapSessionTimeoutInSec, int retryWaitingTimeInMs, Integer communicationPeriodInMs,
             boolean reconnectOnUpdate, boolean resumeOnConnect, boolean useQueueMode,
-            ContentFormat preferredContentFormat) {
+            ContentFormat preferredContentFormat, EstClientOperations estClientOperations) {
         this.endpoint = endpoint;
         this.objectEnablers = objectTree.getObjectEnablers();
         this.bootstrapHandler = bootstrapState;
@@ -161,6 +163,8 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
         this.resumeOnConnect = resumeOnConnect;
         this.queueMode = useQueueMode;
         this.preferredContentFormat = preferredContentFormat;
+        this.estHandler = new EstHandler();
+        this.estClientOperations = estClientOperations;
 
         if (executor == null) {
             schedExecutor = createScheduledExecutor();
@@ -202,6 +206,144 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
             return endpointsManager.createEndpoint(serverInfo);
         }
         return null;
+    }
+
+    /**
+     *
+     * @param serverInfo
+     * @param estServer
+     */
+    private EstDeviceSettings estBootstartSequence(ServerInfo serverInfo, ServerIdentity estServer) throws InterruptedException {
+        EstDeviceSettings estDeviceSettings = new EstDeviceSettings();
+        if (estHandler.tryToInitSession()) {
+            LOG.info("Trying to start EST session to {} ...", estServer.getUri());
+
+            // Send bootstrap request
+            EstCaCertsRequest estCaCertsRequest = null;
+            try {
+                LOG.info("EST - Requesting CA Certificates");
+                estCaCertsRequest = new EstCaCertsRequest();
+                if (observer != null) {
+                    observer.onEstStarted(estServer);
+                }
+                EstCaCertsResponse estCaCertsResponse = sender.send(estServer, estCaCertsRequest, requestTimeoutInMs);
+                if (estCaCertsResponse == null) {
+                    LOG.info("Unable to start EST session: Timeout.");
+                    if (observer != null) {
+                        observer.onEstTimeout(estServer);
+                    }
+                    return null;
+                } else if (estCaCertsResponse.isSuccess()) {
+                    LOG.info("EST - Received CA certificates");
+                    try {
+                        ByteArrayInputStream is = new ByteArrayInputStream(estCaCertsResponse.getPayload());
+                        CertificateFactory cf = CertificateFactory.getInstance( "X.509" );
+                        Certificate[] certificates = cf.generateCertificates(is).toArray(new Certificate[0]);
+                        X509Certificate[] caCerts = SecurityUtil.asX509Certificates(certificates);
+
+                        estDeviceSettings.caCerts = caCerts;
+
+                        if (observer != null) {
+                            observer.onEstReceivedCaCertificates(estServer, caCerts);
+                        }
+
+                        for (X509Certificate cert : caCerts) {
+                            LOG.info(cert.toString());
+                        }
+
+                        estClientOperations.persistEstDeviceSettings(estDeviceSettings);
+                    } catch (CertificateException e) {
+                        e.printStackTrace();
+                        LOG.info("EST failed: {}.", e.getMessage());
+                        if (observer != null) {
+                            observer.onEstFailure(estServer, null,
+                                    e.getMessage(), null);
+                        }
+                        return null;
+                    }
+
+                    X509Certificate clientCertificate = (X509Certificate) serverInfo.clientCertificateChain[0];
+                    byte[] csrDerData = estClientOperations.generateCertificateSigningRequest(clientCertificate, serverInfo.privateKey);
+
+                    LOG.info("EST - Simple Enroll Request");
+                    EstSimpleEnrollRequest estSimpleEnrollRequest = new EstSimpleEnrollRequest(csrDerData);
+                    if (observer != null) {
+                        observer.onEstStarted(estServer);
+                    }
+                    EstSimpleEnrollResponse estSimpleEntrollResponse = sender.send(estServer, estSimpleEnrollRequest, requestTimeoutInMs);
+                    if (estSimpleEntrollResponse == null) {
+                        LOG.info("Unable to start EST session: Timeout.");
+                        if (observer != null) {
+                            observer.onEstTimeout(estServer);
+                        }
+                        return null;
+                    } else if (estSimpleEntrollResponse.isSuccess()) {
+                        LOG.info("EST - Received client certificates");
+                        X509Certificate[] clientCertificates = null;
+                        try {
+                            ByteArrayInputStream is = new ByteArrayInputStream(estSimpleEntrollResponse.getPayload());
+                            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                            Certificate[] certificates = cf.generateCertificates(is).toArray(new Certificate[0]);
+                            clientCertificates = SecurityUtil.asX509Certificates(certificates);
+
+                            estDeviceSettings.clientCertificateChain = clientCertificates;
+
+                        } catch (CertificateException e) {
+                            e.printStackTrace();
+                            LOG.info("EST failed: {}.", e.getMessage());
+                            if (observer != null) {
+                                observer.onEstFailure(estServer, null, e.getMessage(), null);
+                            }
+                            return null;
+                        }
+
+                        if (observer != null) {
+                            observer.onEstReceivedClientCertificates(estServer, clientCertificates);
+                        }
+
+                        for (X509Certificate cert : clientCertificates) {
+                            LOG.info(cert.toString());
+                        }
+
+                        if (observer != null) {
+                            observer.onEstSuccess(estServer);
+                        }
+                        return estDeviceSettings;
+                    } else {
+                        LOG.info("EST failed: {} {}.", estSimpleEntrollResponse.getCode(), estSimpleEntrollResponse.getErrorMessage());
+                        if (observer != null) {
+                            observer.onEstFailure(estServer, estSimpleEntrollResponse.getCode(),
+                                    estSimpleEntrollResponse.getErrorMessage(), null);
+                        }
+                        return null;
+                    }
+                } else {
+                    LOG.info("EST failed: {} {}.", estCaCertsResponse.getCode(), estCaCertsResponse.getErrorMessage());
+                    if (observer != null) {
+                        observer.onEstFailure(estServer, estCaCertsResponse.getCode(),
+                                estCaCertsResponse.getErrorMessage(), null);
+                    }
+                    return null;
+                }
+            } catch (RuntimeException e) {
+                logExceptionOnSendRequest("Unable to send EST request", e);
+                if (observer != null) {
+                    observer.onEstFailure(estServer, null, null, e);
+                }
+                return null;
+            } catch (Exception e) {
+                logExceptionOnSendRequest("Unable to send EST request", e);
+                if (observer != null) {
+                    observer.onEstFailure(estServer, null, null, e);
+                }
+                return null;
+            } finally {
+                estHandler.closeSession();
+            }
+        } else {
+            LOG.warn("EST sequence already started.");
+            return null;
+        }
     }
 
     private ServerIdentity clientInitiatedBootstrap() throws InterruptedException {
@@ -250,14 +392,25 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
                         return null;
                     } else {
                         LOG.info("Bootstrap finished {}.", bootstrapServer.getUri());
+                        if (observer != null) {
+                            observer.onBootstrapSuccess(bootstrapServer, request);
+                        }
+
                         ServerInfo serverInfo = selectServer(
                                 ServersInfoExtractor.getInfo(objectEnablers).deviceManagements);
+
+                        if (serverInfo != null && serverInfo.secureMode == SecurityMode.EST) {
+                            LOG.info("Requested Security Mode with EST {}.", bootstrapServer.getUri());
+                            EstDeviceSettings estDeviceSettings = estBootstartSequence(bootstrapServerInfo, bootstrapServer);
+                            X509Certificate[] certificateChain = estExtractClientCertificateChain(estDeviceSettings);
+
+                            serverInfo.clientCertificateChain = certificateChain;
+                            serverInfo.privateKey = bootstrapServerInfo.privateKey;
+                        }
+
                         ServerIdentity dmServer = null;
                         if (serverInfo != null) {
                             dmServer = endpointsManager.createEndpoint(serverInfo);
-                        }
-                        if (observer != null) {
-                            observer.onBootstrapSuccess(bootstrapServer, request);
                         }
                         return dmServer;
                     }
@@ -283,6 +436,61 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
             LOG.warn("Bootstrap sequence already started.");
             return null;
         }
+    }
+
+    private X509Certificate[] estExtractClientCertificateChain(EstDeviceSettings estDeviceSettings) {
+        // EST provides only one certificate in PKCS#7 object and one needs to fish out real chain from CA certs request
+        // Operations to perform:
+        // - Construct PKIX chain
+        // - Drop root CA of PKIX if it is self-signed (in case EST server is not configured as recommended by EST spec)
+
+        if (estDeviceSettings.clientCertificateChain.length == 0) {
+            return null;
+        }
+
+        try {
+            ArrayList<X509Certificate> chain = new ArrayList<>();
+
+            chain.addAll(Arrays.asList(estDeviceSettings.clientCertificateChain));
+
+            while(true) {
+                X509Certificate cert = chain.get(chain.size() - 1);
+
+                X500Principal issuer = cert.getIssuerX500Principal();
+
+                // Check if we found the root CA
+                if (issuer.equals(cert.getSubjectX500Principal()))
+                    break;
+
+                boolean found = false;
+
+                for (X509Certificate caCert : estDeviceSettings.caCerts) {
+                    X500Principal subject = caCert.getSubjectX500Principal();
+                    if (subject.equals(issuer)) {
+                        try {
+                            cert.verify(caCert.getPublicKey());
+                            caCert.checkValidity();
+                            chain.add(caCert);
+                            found = true;
+                            break;
+                        } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchProviderException | SignatureException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+
+                if (!found)
+                    break;
+            }
+
+            CertificateFactory factory = CertificateFactory.getInstance("X.509");
+            CertPath certPath = factory.generateCertPath(chain);
+            X509Certificate[] certificates = certPath.getCertificates().toArray(new X509Certificate[0]);
+            return certificates;
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private boolean registerWithRetry(ServerIdentity server) throws InterruptedException {
