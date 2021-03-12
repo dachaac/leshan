@@ -46,6 +46,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 import org.eclipse.californium.core.network.config.NetworkConfig.Keys;
+import org.eclipse.californium.elements.util.CertPathUtil;
 import org.eclipse.californium.elements.util.SslContextUtil;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.jetty.server.Server;
@@ -507,6 +508,23 @@ public class LeshanServerDemo {
             } else {
                 // by default trust all
                 builder.setTrustedCertificates(new X509Certificate[0]);
+            }
+        }
+
+        // Autodetect serverOnly and clientOnly
+        if (serverCertificate != null) {
+            if (CertPathUtil.canBeUsedForAuthentication(serverCertificate, false)) {
+                if (CertPathUtil.canBeUsedForAuthentication(serverCertificate, true)) {
+                    // Has both serverAuth and clientAuth
+                    LOG.info("Provided TLS client certificate has both clientAuth and serverAuth specified");
+                } else {
+                    // Has only serverAuth
+                    LOG.info("Provided TLS client certificate has serverAuth specified");
+                    dtlsConfig.setServerOnly(true);
+                }
+            } else {
+                // Not really suitable certificate for client usage
+                LOG.warn("Provided TLS server certificate does not have serverAuth specified");
             }
         }
 
