@@ -11,6 +11,7 @@
  *******************************************************************************/
 package org.eclipse.leshan.client.observer;
 
+import java.security.cert.X509Certificate;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.eclipse.leshan.client.servers.ServerIdentity;
@@ -61,6 +62,49 @@ public class LwM2mClientObserverDispatcher implements LwM2mClientObserver {
     public void onBootstrapTimeout(ServerIdentity bsserver, BootstrapRequest request) {
         for (LwM2mClientObserver observer : observers) {
             observer.onBootstrapTimeout(bsserver, request);
+        }
+    }
+
+    @Override
+    public void onEstStarted(ServerIdentity bsserver) {
+        for (LwM2mClientObserver observer : observers) {
+            observer.onEstStarted(bsserver);
+        }
+    }
+
+    @Override
+    public void onEstReceivedCaCertificates(ServerIdentity estServer, X509Certificate[] caCertificates) {
+        for (LwM2mClientObserver observer : observers) {
+            observer.onEstReceivedCaCertificates(estServer, caCertificates);
+        }
+    }
+
+    @Override
+    public void onEstReceivedClientCertificates(ServerIdentity estServer, X509Certificate[] clientCertificates) {
+        for (LwM2mClientObserver observer : observers) {
+            observer.onEstReceivedClientCertificates(estServer, clientCertificates);
+        }
+    }
+
+    @Override
+    public void onEstSuccess(ServerIdentity bsserver) {
+        for (LwM2mClientObserver observer : observers) {
+            observer.onEstSuccess(bsserver);
+        }
+    }
+
+    @Override
+    public void onEstFailure(ServerIdentity bsserver, ResponseCode responseCode,
+            String errorMessage, Exception cause) {
+        for (LwM2mClientObserver observer : observers) {
+            observer.onEstFailure(bsserver, responseCode, errorMessage, cause);
+        }
+    }
+
+    @Override
+    public void onEstTimeout(ServerIdentity bsserver) {
+        for (LwM2mClientObserver observer : observers) {
+            observer.onEstTimeout(bsserver);
         }
     }
 

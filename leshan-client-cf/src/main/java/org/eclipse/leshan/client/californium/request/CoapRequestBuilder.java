@@ -25,16 +25,7 @@ import org.eclipse.leshan.core.Link;
 import org.eclipse.leshan.core.californium.EndpointContextUtil;
 import org.eclipse.leshan.core.model.LwM2mModel;
 import org.eclipse.leshan.core.node.codec.LwM2mNodeEncoder;
-import org.eclipse.leshan.core.request.BindingMode;
-import org.eclipse.leshan.core.request.BootstrapRequest;
-import org.eclipse.leshan.core.request.ContentFormat;
-import org.eclipse.leshan.core.request.DeregisterRequest;
-import org.eclipse.leshan.core.request.Identity;
-import org.eclipse.leshan.core.request.RegisterRequest;
-import org.eclipse.leshan.core.request.SendRequest;
-import org.eclipse.leshan.core.request.UpdateRequest;
-import org.eclipse.leshan.core.request.UplinkRequest;
-import org.eclipse.leshan.core.request.UplinkRequestVisitor;
+import org.eclipse.leshan.core.request.*;
 
 /**
  * This class is able to create CoAP request from LWM2M {@link UplinkRequest}.
@@ -70,6 +61,24 @@ public class CoapRequestBuilder implements UplinkRequestVisitor {
         for (Entry<String, String> attr : attributes.entrySet()) {
             coapRequest.getOptions().addUriQuery(attr.getKey() + "=" + attr.getValue());
         }
+    }
+
+    @Override
+    public void visit(EstCaCertsRequest request) {
+        coapRequest = Request.newGet();
+        buildRequestSettings();
+        coapRequest.getOptions().setUriPath("/.well-known/est/crts");
+        coapRequest.getOptions().setAccept(281);
+    }
+
+    @Override
+    public void visit(EstSimpleEnrollRequest request) {
+        coapRequest = Request.newPost();
+        buildRequestSettings();
+        coapRequest.getOptions().setUriPath("/.well-known/est/sen");
+        coapRequest.getOptions().setAccept(281);
+        coapRequest.getOptions().setContentFormat(286);
+        coapRequest.setPayload(request.getPayload());
     }
 
     @Override

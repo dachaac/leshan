@@ -22,6 +22,8 @@ import org.eclipse.leshan.core.request.DeregisterRequest;
 import org.eclipse.leshan.core.request.RegisterRequest;
 import org.eclipse.leshan.core.request.UpdateRequest;
 
+import java.security.cert.X509Certificate;
+
 /**
  * An abstract adapter class for observing registration life cycle. The methods in this class are empty. This class
  * exists as convenience for creating client observer objects.
@@ -43,6 +45,31 @@ public class LwM2mClientObserverAdapter implements LwM2mClientObserver {
 
     @Override
     public void onBootstrapTimeout(ServerIdentity bsserver, BootstrapRequest request) {
+    }
+
+    @Override
+    public void onEstStarted(ServerIdentity bsserver) {
+    }
+
+    @Override
+    public void onEstReceivedCaCertificates(ServerIdentity estServer, X509Certificate[] caCertificates) {
+    }
+
+    @Override
+    public void onEstReceivedClientCertificates(ServerIdentity estServer, X509Certificate[] clientCertificates) {
+    }
+
+    @Override
+    public void onEstSuccess(ServerIdentity bsserver) {
+    }
+
+    @Override
+    public void onEstFailure(ServerIdentity bsserver, ResponseCode responseCode,
+            String errorMessage, Exception cause) {
+    }
+
+    @Override
+    public void onEstTimeout(ServerIdentity bsserver) {
     }
 
     @Override

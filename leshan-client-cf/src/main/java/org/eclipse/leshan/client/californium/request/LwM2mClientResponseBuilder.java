@@ -18,20 +18,9 @@ package org.eclipse.leshan.client.californium.request;
 import static org.eclipse.leshan.core.californium.ResponseCodeUtil.toLwM2mResponseCode;
 
 import org.eclipse.californium.core.coap.Response;
-import org.eclipse.leshan.core.request.BootstrapRequest;
-import org.eclipse.leshan.core.request.DeregisterRequest;
-import org.eclipse.leshan.core.request.LwM2mRequest;
-import org.eclipse.leshan.core.request.RegisterRequest;
-import org.eclipse.leshan.core.request.SendRequest;
-import org.eclipse.leshan.core.request.UpdateRequest;
-import org.eclipse.leshan.core.request.UplinkRequestVisitor;
+import org.eclipse.leshan.core.request.*;
 import org.eclipse.leshan.core.request.exception.InvalidResponseException;
-import org.eclipse.leshan.core.response.BootstrapResponse;
-import org.eclipse.leshan.core.response.DeregisterResponse;
-import org.eclipse.leshan.core.response.LwM2mResponse;
-import org.eclipse.leshan.core.response.RegisterResponse;
-import org.eclipse.leshan.core.response.SendResponse;
-import org.eclipse.leshan.core.response.UpdateResponse;
+import org.eclipse.leshan.core.response.*;
 
 /**
  * This class is able to create a {@link LwM2mResponse} from a CoAP {@link Response}.
@@ -125,6 +114,44 @@ public class LwM2mClientResponseBuilder<T extends LwM2mResponse> implements Upli
         }
     }
 
+    @Override
+    public void visit(EstCaCertsRequest request) {
+        if (coapResponse.isError()) {
+            // handle error response:
+            lwM2mresponse = new EstCaCertsResponse(toLwM2mResponseCode(coapResponse.getCode()),
+                    coapResponse.getPayloadString(), null);
+        } else if (coapResponse.getCode() == org.eclipse.californium.core.coap.CoAP.ResponseCode.CONTENT) {
+            // handle success response:
+            if (coapResponse.getOptions().getContentFormat() == 281) {
+                lwM2mresponse = EstCaCertsResponse.success(coapResponse.getPayload());
+            } else {
+                handleUnexpectedContentFormat(request, coapResponse);
+            }
+        } else {
+            // handle unexpected response:
+            handleUnexpectedResponseCode(request, coapResponse);
+        }
+    }
+
+    @Override
+    public void visit(EstSimpleEnrollRequest request) {
+        if (coapResponse.isError()) {
+            // handle error response:
+            lwM2mresponse = new EstSimpleEnrollResponse(toLwM2mResponseCode(coapResponse.getCode()),
+                    coapResponse.getPayloadString(), null);
+        } else if (coapResponse.getCode() == org.eclipse.californium.core.coap.CoAP.ResponseCode.CHANGED) {
+            // handle success response:
+            if (coapResponse.getOptions().getContentFormat() == 281) {
+                lwM2mresponse = EstSimpleEnrollResponse.success(coapResponse.getPayload());
+            } else {
+                handleUnexpectedContentFormat(request, coapResponse);
+            }
+        } else {
+            // handle unexpected response:
+            handleUnexpectedResponseCode(request, coapResponse);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public T getResponse() {
         return (T) lwM2mresponse;
@@ -133,5 +160,10 @@ public class LwM2mClientResponseBuilder<T extends LwM2mResponse> implements Upli
     protected void handleUnexpectedResponseCode(LwM2mRequest<?> request, Response coapResponse) {
         throw new InvalidResponseException("Server returned unexpected response code [%s] for [%s]",
                 coapResponse.getCode(), request);
+    }
+
+    protected void handleUnexpectedContentFormat(LwM2mRequest<?> request, Response coapResponse) {
+        throw new InvalidResponseException("Server returned unexpected content format [%s] for [%s]",
+                coapResponse.getOptions().getContentFormat(), request);
     }
 }

@@ -17,10 +17,9 @@ package org.eclipse.leshan.client.observer;
 
 import org.eclipse.leshan.client.servers.ServerIdentity;
 import org.eclipse.leshan.core.ResponseCode;
-import org.eclipse.leshan.core.request.BootstrapRequest;
-import org.eclipse.leshan.core.request.DeregisterRequest;
-import org.eclipse.leshan.core.request.RegisterRequest;
-import org.eclipse.leshan.core.request.UpdateRequest;
+import org.eclipse.leshan.core.request.*;
+
+import java.security.cert.X509Certificate;
 
 /**
  * Allow to observer the registration life cycle of a LwM2m client.
@@ -36,6 +35,21 @@ public interface LwM2mClientObserver {
             Exception cause);
 
     void onBootstrapTimeout(ServerIdentity bsserver, BootstrapRequest request);
+
+    // ============== EST =================
+
+    void onEstStarted(ServerIdentity bsserver);
+
+    void onEstReceivedCaCertificates(ServerIdentity estServer, X509Certificate[] caCertificates);
+
+    void onEstReceivedClientCertificates(ServerIdentity estServer, X509Certificate[] clientCertificates);
+
+    void onEstSuccess(ServerIdentity bsserver);
+
+    void onEstFailure(ServerIdentity bsserver, ResponseCode responseCode, String errorMessage,
+            Exception cause);
+
+    void onEstTimeout(ServerIdentity bsserver);
 
     // ============== Registration =================
 

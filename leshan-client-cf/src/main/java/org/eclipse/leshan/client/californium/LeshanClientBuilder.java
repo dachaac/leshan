@@ -34,6 +34,7 @@ import org.eclipse.californium.scandium.config.DtlsConnectorConfig.Builder;
 import org.eclipse.leshan.client.engine.DefaultRegistrationEngineFactory;
 import org.eclipse.leshan.client.engine.RegistrationEngine;
 import org.eclipse.leshan.client.engine.RegistrationEngineFactory;
+import org.eclipse.leshan.client.est.EstClientOperations;
 import org.eclipse.leshan.client.object.Device;
 import org.eclipse.leshan.client.object.Security;
 import org.eclipse.leshan.client.object.Server;
@@ -76,6 +77,7 @@ public class LeshanClientBuilder {
 
     /** @since 1.1 */
     protected Map<String, String> bsAdditionalAttributes;
+    private EstClientOperations estClientOperations;
 
     /**
      * Creates a new instance for setting the configuration options for a {@link LeshanClient} instance.
@@ -217,6 +219,11 @@ public class LeshanClientBuilder {
         return this;
     }
 
+    public LeshanClientBuilder setEstClientOperations(EstClientOperations estClientOperations) {
+        this.estClientOperations = estClientOperations;
+        return this;
+    }
+
     /**
      * Set a shared executor. This executor will be used everywhere it is possible. This is generally used when you want
      * to limit the number of thread to use or if you want to simulate a lot of clients sharing the same thread pool.
@@ -323,7 +330,7 @@ public class LeshanClientBuilder {
         }
 
         return createLeshanClient(endpoint, localAddress, objectEnablers, coapConfig, dtlsConfigBuilder,
-                this.trustStore, endpointFactory, engineFactory, additionalAttributes, encoder, decoder, executor);
+                this.trustStore, endpointFactory, engineFactory, additionalAttributes, encoder, decoder, executor, this.estClientOperations);
     }
 
     /**
@@ -347,16 +354,16 @@ public class LeshanClientBuilder {
      * @param encoder used to encode request payload.
      * @param decoder used to decode response payload.
      * @param sharedExecutor an optional shared executor.
-     * 
+     * @param estClientOperations
      * @return the new {@link LeshanClient}
      */
     protected LeshanClient createLeshanClient(String endpoint, InetSocketAddress localAddress,
             List<? extends LwM2mObjectEnabler> objectEnablers, NetworkConfig coapConfig, Builder dtlsConfigBuilder,
             List<Certificate> trustStore, EndpointFactory endpointFactory, RegistrationEngineFactory engineFactory,
             Map<String, String> additionalAttributes, LwM2mNodeEncoder encoder, LwM2mNodeDecoder decoder,
-            ScheduledExecutorService sharedExecutor) {
+            ScheduledExecutorService sharedExecutor, EstClientOperations estClientOperations) {
         return new LeshanClient(endpoint, localAddress, objectEnablers, coapConfig, dtlsConfigBuilder, trustStore,
                 endpointFactory, engineFactory, additionalAttributes, bsAdditionalAttributes, encoder, decoder,
-                executor);
+                executor, estClientOperations);
     }
 }
