@@ -102,8 +102,10 @@ angular.module('securityControllers', [])
                     var security = {endpoint: $scope.endpoint, psk : { identity : $scope.pskIdentity , key : $scope.pskValue}};
                 } else if($scope.securityMode == "rpk") {
                     var security = {endpoint: $scope.endpoint, rpk : { key : $scope.rpkValue }};
-                } else {
+                } else if($scope.securityMode == "x509") {
                     var security = {endpoint: $scope.endpoint, x509 : true};
+                } else if($scope.securityMode == "est") {
+                    var security = {endpoint: $scope.endpoint, est : true};
                 }
                 if(security) {
                     $http({method: 'PUT', url: "api/security/clients/", data: security, headers:{'Content-Type': 'text/plain'}})

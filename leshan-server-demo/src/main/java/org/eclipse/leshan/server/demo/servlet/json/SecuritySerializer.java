@@ -81,6 +81,10 @@ public class SecuritySerializer implements JsonSerializer<SecurityInfo> {
             element.addProperty("x509", true);
         }
 
+        if (src.useEST()) {
+            element.addProperty("est", true);
+        }
+
         return element;
     }
 }
