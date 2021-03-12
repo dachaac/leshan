@@ -36,6 +36,9 @@ import org.eclipse.leshan.server.bootstrap.BootstrapHandlerFactory;
 import org.eclipse.leshan.server.bootstrap.BootstrapSessionManager;
 import org.eclipse.leshan.server.bootstrap.LwM2mBootstrapRequestSender;
 import org.eclipse.leshan.server.californium.RootResource;
+import org.eclipse.leshan.server.californium.WellKnownResource;
+import org.eclipse.leshan.server.californium.est.EstServiceResource;
+import org.eclipse.leshan.server.est.CoapEstHandler;
 import org.eclipse.leshan.server.security.BootstrapSecurityStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,8 +81,7 @@ public class LeshanBootstrapServer {
     public LeshanBootstrapServer(CoapEndpoint unsecuredEndpoint, CoapEndpoint securedEndpoint,
             BootstrapConfigurationStore bsStore, BootstrapSecurityStore bsSecurityStore,
             BootstrapSessionManager bsSessionManager, BootstrapHandlerFactory bsHandlerFactory, LwM2mModel model,
-            NetworkConfig coapConfig, LwM2mNodeEncoder encoder, LwM2mNodeDecoder decoder) {
-
+            NetworkConfig coapConfig, LwM2mNodeEncoder encoder, LwM2mNodeDecoder decoder, CoapEstHandler coapEstHandler) {
         Validate.notNull(bsStore, "bootstrap store must not be null");
         Validate.notNull(bsSessionManager, "session manager must not be null");
         Validate.notNull(bsHandlerFactory, "BootstrapHandler factory must not be null");
@@ -107,7 +109,16 @@ public class LeshanBootstrapServer {
         // create bootstrap resource
         CoapResource bsResource = createBootstrapResource(
                 bsHandlerFactory.create(bsStore, requestSender, bsSessionManager));
+
         coapServer.add(bsResource);
+
+        if (coapEstHandler != null) {
+            CoapResource wellKnownResource = new WellKnownResource();
+
+            wellKnownResource.add(new EstServiceResource(coapEstHandler));
+
+            coapServer.add(wellKnownResource);
+        }
     }
 
     protected CoapServer createCoapServer(NetworkConfig coapConfig) {
