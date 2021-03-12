@@ -62,7 +62,8 @@ public class ConfigurationChecker {
                 checkX509(sec);
                 break;
             case EST:
-                throw new InvalidConfigurationException("EST is not currently supported.", e);
+                checkEST(sec);
+                break;
             }
 
             validateMandatoryField(sec);
@@ -109,6 +110,12 @@ public class ConfigurationChecker {
         assertIf(isEmpty(sec.serverPublicKey), "x509 mode, server public key must not be empty");
         assertIf(decodeCertificate(sec.serverPublicKey) == null,
                 "x509 mode, server public key must be DER encoded X.509 certificate");
+    }
+
+    protected void checkEST(ServerSecurity sec) throws InvalidConfigurationException {
+        assertIf(isEmpty(sec.serverPublicKey), "EST mode, server public key must not be empty");
+        assertIf(decodeCertificate(sec.serverPublicKey) == null,
+                "EST mode, server public key must be DER encoded X.509 certificate");
     }
 
     protected void validateMandatoryField(ServerSecurity sec) throws InvalidConfigurationException {
