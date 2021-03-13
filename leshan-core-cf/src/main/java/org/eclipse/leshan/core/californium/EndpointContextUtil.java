@@ -20,6 +20,9 @@ package org.eclipse.leshan.core.californium;
 import java.net.InetSocketAddress;
 import java.security.Principal;
 import java.security.PublicKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,7 +35,11 @@ import org.eclipse.californium.elements.MapBasedEndpointContext;
 import org.eclipse.californium.elements.auth.PreSharedKeyIdentity;
 import org.eclipse.californium.elements.auth.RawPublicKeyIdentity;
 import org.eclipse.californium.elements.auth.X509CertPath;
+import org.eclipse.californium.elements.util.CertPathUtil;
 import org.eclipse.leshan.core.request.Identity;
+import org.eclipse.leshan.core.util.EndpointNameUtil;
+import org.eclipse.leshan.core.util.SecurityUtil;
+import org.eclipse.leshan.core.util.X509CertUtil;
 
 /**
  * Utility class used to handle Californium {@link EndpointContext} in Leshan.
@@ -57,10 +64,24 @@ public class EndpointContextUtil {
             } else if (senderIdentity instanceof RawPublicKeyIdentity) {
                 PublicKey publicKey = ((RawPublicKeyIdentity) senderIdentity).getKey();
                 return Identity.rpk(peerAddress, publicKey);
-            } else if (senderIdentity instanceof X500Principal || senderIdentity instanceof X509CertPath) {
+            } else if (senderIdentity instanceof X500Principal) {
                 // Extract common name
                 String x509CommonName = extractCN(senderIdentity.getName());
                 return Identity.x509(peerAddress, x509CommonName);
+            } else if (senderIdentity instanceof X509CertPath) {
+                // Extract common name
+                X509CertPath x509CertPath = (X509CertPath)senderIdentity;
+                X509Certificate[] certificateChain = null;
+                try {
+                    certificateChain = SecurityUtil
+                            .asX509Certificates(x509CertPath.getPath().getCertificates().toArray(new Certificate[0]));
+                } catch (CertificateException e) {
+                    throw new IllegalStateException(
+                            String.format("Unable to extract sender identity : unexpected type of Principal %s [%s]",
+                                    senderIdentity.getClass(), senderIdentity.toString()));
+                }
+                String endpointName = EndpointNameUtil.resolve(certificateChain);
+                return Identity.x509(peerAddress, endpointName);
             }
             throw new IllegalStateException(
                     String.format("Unable to extract sender identity : unexpected type of Principal %s [%s]",
