@@ -46,6 +46,7 @@ import org.eclipse.leshan.core.LwM2m;
 import org.eclipse.leshan.core.model.ObjectLoader;
 import org.eclipse.leshan.core.model.ObjectModel;
 import org.eclipse.leshan.core.model.StaticModel;
+import org.eclipse.leshan.core.util.EndpointNameUtil;
 import org.eclipse.leshan.core.util.SecurityUtil;
 import org.eclipse.leshan.server.bootstrap.BootstrapConfigurationStoreAdapter;
 import org.eclipse.leshan.server.bootstrap.demo.est.CoapEstRegistrarHandler;
@@ -152,6 +153,9 @@ public class LeshanBootstrapServerDemo {
                 "EST registrar's user name for EST server authentication when using Basic Auth.");
         options.addOption(null, "est-pass", true,
                 "EST registrar's password for EST server authentication when using Basic Auth.");
+
+        options.addOption(null, "idevid-map", true,
+                "IDevID enterprise ID mapping to Subject DN in trust store. Syntax: \"<Enterprise ID>:<Root CA's Subject DN>\"");
 
         HelpFormatter formatter = new HelpFormatter();
         formatter.setWidth(120);
@@ -429,6 +433,43 @@ public class LeshanBootstrapServerDemo {
 
             estRegistrarConfig.username = cl.getOptionValue("est-user");
             estRegistrarConfig.password = cl.getOptionValue("est-pass");
+        }
+
+        if (cl.hasOption("idevid-map") && trustStore != null) {
+            String[] entries = cl.getOptionValues("idevid-map");
+
+            for (String value : entries) {
+                String[] entry = value.split(":", 2);
+                boolean found = false;
+
+                int entId = Integer.parseInt(entry[0]);
+                String subjectDN = entry[1];
+
+                for (Certificate cert : trustStore) {
+                    if (cert instanceof X509Certificate) {
+                        X509Certificate x509cert = (X509Certificate) cert;
+                        if (x509cert.getSubjectDN().getName().equals(subjectDN)) {
+                            LOG.info("Add IDevID mapping: enterprise ID = " + entId + " for DN = " + subjectDN);
+                            EndpointNameUtil.resolvers.put(subjectDN, new IDevIDEndpointNameResolver(entId));
+                            found = true;
+                        }
+                    }
+                }
+
+                if (!found) {
+                    LOG.error("Failed to find Root CA from trust store: " + subjectDN);
+
+                    LOG.error("Trust store's subject DN list:");
+                    for (Certificate cert : trustStore) {
+                        if (cert instanceof X509Certificate) {
+                            X509Certificate x509cert = (X509Certificate) cert;
+                            LOG.error(x509cert.getSubjectDN().getName());
+                        }
+                    }
+
+                    return;
+                }
+            }
         }
 
         try {
