@@ -16,11 +16,17 @@
 package org.eclipse.leshan.core.californium;
 
 import java.security.Principal;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 
 import javax.security.auth.x500.X500Principal;
 
 import org.eclipse.californium.elements.PrincipalEndpointContextMatcher;
+import org.eclipse.californium.elements.auth.X509CertPath;
 import org.eclipse.leshan.core.request.Identity;
+import org.eclipse.leshan.core.util.EndpointNameUtil;
+import org.eclipse.leshan.core.util.SecurityUtil;
 
 /**
  * LWM2M principal based endpoint context matcher.
@@ -53,9 +59,19 @@ public class Lwm2mEndpointContextMatcher extends PrincipalEndpointContextMatcher
         if (requestedPrincipal instanceof X500Principal || availablePrincipal instanceof X500Principal) {
             try {
                 String requestedCommonName = EndpointContextUtil.extractCN(requestedPrincipal.getName());
-                String availableCommonName = EndpointContextUtil.extractCN(availablePrincipal.getName());
+                String availableCommonName = null;
+
+                if (availablePrincipal instanceof X509CertPath) {
+                    X509CertPath x509CertPath = (X509CertPath) availablePrincipal;
+                    X509Certificate[] certificateChain = SecurityUtil
+                            .asX509Certificates(x509CertPath.getPath().getCertificates().toArray(new Certificate[0]));
+                    availableCommonName = EndpointNameUtil.resolve(certificateChain);
+                } else {
+                    availableCommonName = EndpointContextUtil.extractCN(availablePrincipal.getName());
+                }
+
                 return requestedCommonName.equals(availableCommonName);
-            } catch (IllegalStateException e) {
+            } catch (IllegalStateException | CertificateException e) {
                 return false;
             }
         } else {
