@@ -25,16 +25,24 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.ssl.TrustStrategy;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.eclipse.californium.core.coap.CoAP;
+import org.eclipse.californium.elements.auth.X509CertPath;
+import org.eclipse.leshan.core.util.EndpointNameUtil;
+import org.eclipse.leshan.core.util.SecurityUtil;
+import org.eclipse.leshan.core.util.X509CertUtil;
 import org.eclipse.leshan.server.est.CoapEstHandler;
 
 import javax.net.ssl.SSLContext;
+import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
@@ -181,6 +189,29 @@ public class CoapEstRegistrarHandler implements CoapEstHandler {
 
         if (requestContentFormat != 286) {
             throw new Exception("Unsupported request content format: " + requestContentFormat);
+        }
+
+        JcaPKCS10CertificationRequest p10Object = new JcaPKCS10CertificationRequest(requestPayload);
+
+        X500Principal subjectDN = new X500Principal(p10Object.getSubject().getEncoded());
+
+        String senderSubjectDN = null;
+
+        if (senderIdentity instanceof X509CertPath) {
+            X509CertPath x509CertPath = (X509CertPath) senderIdentity;
+            X509Certificate[] certificateChain = SecurityUtil
+                    .asX509Certificates(x509CertPath.getPath().getCertificates().toArray(new Certificate[0]));
+            senderSubjectDN = EndpointNameUtil.resolve(certificateChain);
+        }
+
+        if (senderSubjectDN == null) {
+            throw new Exception("Could not get sender's subject DN");
+        }
+
+        String cn = X509CertUtil.getPrincipalField(subjectDN, "CN");
+
+        if (!cn.equals(senderSubjectDN)) {
+            throw new Exception("Subject DN does not match peer identity.");
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
