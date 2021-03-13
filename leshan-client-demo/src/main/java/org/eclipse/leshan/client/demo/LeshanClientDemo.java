@@ -770,7 +770,7 @@ public class LeshanClientDemo {
         builder.setDtlsConfig(dtlsConfig);
         builder.setRegistrationEngineFactory(engineFactory);
         builder.setEndpointFactory(endpointFactory);
-        builder.setEstClientOperations(new EstClientOperationsImpl());
+        builder.setEstClientOperations(new EstClientOperationsImpl(endpoint));
         if (supportOldFormat) {
             builder.setDecoder(new DefaultLwM2mNodeDecoder(true));
             builder.setEncoder(new DefaultLwM2mNodeEncoder(true));
