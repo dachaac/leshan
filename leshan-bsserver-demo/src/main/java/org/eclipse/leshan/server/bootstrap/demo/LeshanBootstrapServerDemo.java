@@ -42,6 +42,7 @@ import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
+import org.eclipse.leshan.core.CertificateUsage;
 import org.eclipse.leshan.core.LwM2m;
 import org.eclipse.leshan.core.model.ObjectLoader;
 import org.eclipse.leshan.core.model.ObjectModel;
@@ -56,8 +57,13 @@ import org.eclipse.leshan.server.bootstrap.demo.servlet.ServerServlet;
 import org.eclipse.leshan.server.californium.LeshanServerBuilder;
 import org.eclipse.leshan.server.californium.bootstrap.LeshanBootstrapServer;
 import org.eclipse.leshan.server.californium.bootstrap.LeshanBootstrapServerBuilder;
+import org.eclipse.leshan.server.redis.RedisSecurityStore;
+import org.eclipse.leshan.server.security.EditableSecurityStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.util.Pool;
 
 public class LeshanBootstrapServerDemo {
 
@@ -116,6 +122,8 @@ public class LeshanBootstrapServerDemo {
         options.addOption("cfg", "configfile", true,
                 "Set the filename for the configuration.\nDefault: " + JSONFileBootstrapStore.DEFAULT_FILE + ".");
         options.addOption("oc", "activate support of old/deprecated cipher suites." + RPKChapter);
+        options.addOption("r", "redis", true,
+                "Use redis to store registration and securityInfo. \nThe URL of the redis server should be given using this format : 'redis://:password@hostname:port/db_number'\nExample without DB and password: 'redis://localhost:6379'\nDefault: redis is not used.");
         options.addOption("pubk", true,
                 "The path to your server public key file.\n The public Key should be in SubjectPublicKeyInfo format (DER encoding).");
         options.addOption("prik", true,
@@ -125,6 +133,16 @@ public class LeshanBootstrapServerDemo {
                 "The path to your server certificate file.\n"
                         + "The certificate Common Name (CN) should generally be equal to the server hostname.\n"
                         + "The certificate should be in X509v3 format (DER encoding).");
+
+        options.addOption("abu", "autoreg-bootstrap-uri", true,
+                "Server URI for LWM2M server (coaps://mybootstrap:/)");
+        options.addOption("asu", "autoreg-server-uri", true,
+                "Server URI for LWM2M server (coaps://myserver/)");
+        options.addOption("acert", "autoreg-server-cert", true,
+                "The path to auto registration destination server certificate file.");
+
+        options.addOption("acu", "autoreg-certificate-usage", true,
+                "Certificate Usage (as integer) for security object.\n Default: domain issued certificate (3).");
 
         final StringBuilder trustStoreChapter = new StringBuilder();
         trustStoreChapter.append("\n .");
@@ -271,6 +289,9 @@ public class LeshanBootstrapServerDemo {
         // Get models folder
         String modelsFolderPath = cl.getOptionValue("m");
 
+        // get the Redis hostname:port
+        String redisUrl = cl.getOptionValue("r");
+
         // Get config file
         String configFilename = cl.getOptionValue("cfg");
         if (configFilename == null) {
@@ -305,6 +326,26 @@ public class LeshanBootstrapServerDemo {
                 return;
             }
         }
+
+        X509Certificate autoregServerCert = null;
+        if (cl.hasOption("acert")) {
+            try {
+                autoregServerCert = SecurityUtil.certificate.readFromFile(cl.getOptionValue("acert"));
+            } catch (Exception e) {
+                System.err.println("Unable to load X509 files : " + e.getMessage());
+                e.printStackTrace();
+                formatter.printHelp(USAGE, options);
+                return;
+            }
+        }
+
+        CertificateUsage autoregCertificateUsage = CertificateUsage.DOMAIN_ISSUER_CERTIFICATE;
+        if (cl.hasOption("acu")) {
+            autoregCertificateUsage = CertificateUsage.fromCode(Integer.parseInt(cl.getOptionValue("acu")));
+        }
+
+        String autoregBootstrapUri = cl.getOptionValue("abu");
+        String autoregServerUri = cl.getOptionValue("asu");
 
         // get EST's X509 client certificate
         X509Certificate[] estClientCertificate = null;
@@ -475,7 +516,7 @@ public class LeshanBootstrapServerDemo {
         try {
             createAndStartServer(webAddress, webPort, localAddress, localPort, secureLocalAddress, secureLocalPort,
                     modelsFolderPath, configFilename, cl.hasOption("oc"), publicKey, privateKey, certificate,
-                    trustStore, estRegistrarConfig);
+                    trustStore, estRegistrarConfig, redisUrl, autoregBootstrapUri, autoregServerUri, autoregServerCert, autoregCertificateUsage);
         } catch (BindException e) {
             System.err.println(String
                     .format("Web port %s is already in use, you can change it using the 'webport' option.", webPort));
@@ -488,7 +529,8 @@ public class LeshanBootstrapServerDemo {
     public static void createAndStartServer(String webAddress, int webPort, String localAddress, Integer localPort,
             String secureLocalAddress, Integer secureLocalPort, String modelsFolderPath, String configFilename,
             boolean supportDeprecatedCiphers, PublicKey publicKey, PrivateKey privateKey, X509Certificate[] certificate,
-            List<Certificate> trustStore, EstRegistrarConfig estRegistrarConfig) throws Exception {
+            List<Certificate> trustStore, EstRegistrarConfig estRegistrarConfig, String redisUrl,
+            String autoregBootstrapUri, String autoregServerUri, X509Certificate autoregServerCert, CertificateUsage autoregCertificateUsage) throws Exception {
         // Create Models
         List<ObjectModel> models = ObjectLoader.loadDefault();
         if (modelsFolderPath != null) {
@@ -498,8 +540,21 @@ public class LeshanBootstrapServerDemo {
         // Prepare and start bootstrap server
         LeshanBootstrapServerBuilder builder = new LeshanBootstrapServerBuilder();
         JSONFileBootstrapStore bsStore = new JSONFileBootstrapStore(configFilename);
+        BootstrapConfigSecurityStore securityStore = new BootstrapConfigSecurityStore(bsStore);
         builder.setConfigStore(new BootstrapConfigurationStoreAdapter(bsStore));
-        builder.setSecurityStore(new BootstrapConfigSecurityStore(bsStore));
+        builder.setSecurityStore(securityStore);
+
+        // Connect to redis if needed
+        Pool<Jedis> jedis = null;
+        EditableSecurityStore serverSecurityStore = null;
+
+        if (redisUrl != null) {
+            // TODO support sentinel pool and make pool configurable
+            jedis = new JedisPool(new URI(redisUrl));
+            serverSecurityStore = new RedisSecurityStore(jedis);
+        }
+        builder.setSessionManager(new X509BootstrapSessionManager(securityStore, bsStore, autoregBootstrapUri, autoregServerUri, autoregServerCert, autoregCertificateUsage, serverSecurityStore));
+        builder.setSecurityStore(securityStore);
         builder.setModel(new StaticModel(models));
 
         // Create DTLS Config
