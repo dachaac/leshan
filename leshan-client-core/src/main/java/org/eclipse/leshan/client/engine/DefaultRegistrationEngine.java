@@ -1025,6 +1025,11 @@ public class DefaultRegistrationEngine implements RegistrationEngine {
         if (identity == null)
             return null;
         ServerIdentity bootstrapServer = currentBoostrapServer.get();
+        if (bootstrapServer != null && identity.isX509() && bootstrapServer.getIdentity().isX509()) {
+            if (identity.getPeerAddress().equals(bootstrapServer.getIdentity().getPeerAddress())) {
+                return bootstrapServer;
+            }
+        }
         if (bootstrapServer != null && identity.equals(bootstrapServer.getIdentity())) {
             return bootstrapServer;
         } else {
