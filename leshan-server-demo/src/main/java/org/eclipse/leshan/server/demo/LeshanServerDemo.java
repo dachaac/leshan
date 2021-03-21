@@ -299,11 +299,11 @@ public class LeshanServerDemo {
         }
 
         // get X509 info
-        X509Certificate certificate = null;
+        X509Certificate[] certificate = null;
         if (cl.hasOption("cert")) {
             try {
                 privateKey = SecurityUtil.privateKey.readFromFile(cl.getOptionValue("prik"));
-                certificate = SecurityUtil.certificate.readFromFile(cl.getOptionValue("cert"));
+                certificate = SecurityUtil.certificateChain.readFromFile(cl.getOptionValue("cert"));
             } catch (Exception e) {
                 System.err.println("Unable to load X509 files : " + e.getMessage());
                 e.printStackTrace();
@@ -385,7 +385,7 @@ public class LeshanServerDemo {
 
     public static void createAndStartServer(String webAddress, int webPort, String localAddress, Integer localPort,
             String secureLocalAddress, Integer secureLocalPort, String modelsFolderPath, String redisUrl,
-            PublicKey publicKey, PrivateKey privateKey, X509Certificate certificate, List<Certificate> trustStore,
+            PublicKey publicKey, PrivateKey privateKey, X509Certificate[] certificate, List<Certificate> trustStore,
             String keyStorePath, String keyStoreType, String keyStorePass, String keyStoreAlias,
             String keyStoreAliasPass, Boolean publishDNSSdServices, boolean supportDeprecatedCiphers) throws Exception {
         // Prepare LWM2M server
@@ -424,12 +424,12 @@ public class LeshanServerDemo {
         DtlsConnectorConfig.Builder dtlsConfig = new DtlsConnectorConfig.Builder();
         dtlsConfig.setRecommendedCipherSuitesOnly(!supportDeprecatedCiphers);
 
-        X509Certificate serverCertificate = null;
+        X509Certificate[] serverCertificate = null;
         if (certificate != null) {
             // use X.509 mode (+ RPK)
             serverCertificate = certificate;
             builder.setPrivateKey(privateKey);
-            builder.setCertificateChain(new X509Certificate[] { serverCertificate });
+            builder.setCertificateChain(serverCertificate);
         } else if (publicKey != null) {
             // use RPK only
             builder.setPublicKey(publicKey);
@@ -472,9 +472,8 @@ public class LeshanServerDemo {
                                 System.exit(-1);
                             }
                             builder.setPrivateKey((PrivateKey) key);
-                            serverCertificate = (X509Certificate) keyStore.getCertificate(alias);
-                            builder.setCertificateChain(
-                                    x509CertificateChain.toArray(new X509Certificate[x509CertificateChain.size()]));
+                            serverCertificate = x509CertificateChain.toArray(new X509Certificate[0]);
+                            builder.setCertificateChain(serverCertificate);
                         }
                     }
                     builder.setTrustedCertificates(
@@ -492,9 +491,9 @@ public class LeshanServerDemo {
             try {
                 PrivateKey embeddedPrivateKey = SecurityUtil.privateKey
                         .readFromResource("credentials/server_privkey.der");
-                serverCertificate = SecurityUtil.certificate.readFromResource("credentials/server_cert.der");
+                serverCertificate = SecurityUtil.certificateChain.readFromResource("credentials/server_cert.der");
                 builder.setPrivateKey(embeddedPrivateKey);
-                builder.setCertificateChain(new X509Certificate[] { serverCertificate });
+                builder.setCertificateChain(serverCertificate);
             } catch (Exception e) {
                 LOG.error("Unable to load embedded X.509 certificate.", e);
                 System.exit(-1);
@@ -513,8 +512,8 @@ public class LeshanServerDemo {
 
         // Autodetect serverOnly and clientOnly
         if (serverCertificate != null) {
-            if (CertPathUtil.canBeUsedForAuthentication(serverCertificate, false)) {
-                if (CertPathUtil.canBeUsedForAuthentication(serverCertificate, true)) {
+            if (CertPathUtil.canBeUsedForAuthentication(serverCertificate[0], false)) {
+                if (CertPathUtil.canBeUsedForAuthentication(serverCertificate[0], true)) {
                     // Has both serverAuth and clientAuth
                     LOG.info("Provided TLS client certificate has both clientAuth and serverAuth specified");
                 } else {
@@ -610,7 +609,7 @@ public class LeshanServerDemo {
         if (publicKey != null) {
             securityServletHolder = new ServletHolder(new SecurityServlet(securityStore, publicKey));
         } else {
-            securityServletHolder = new ServletHolder(new SecurityServlet(securityStore, serverCertificate));
+            securityServletHolder = new ServletHolder(new SecurityServlet(securityStore, serverCertificate[0]));
         }
         root.addServlet(securityServletHolder, "/api/security/*");
         root.addServlet(securityServletHolder, "/v2/api/security/*");// Temporary code to be able to serve both UI
