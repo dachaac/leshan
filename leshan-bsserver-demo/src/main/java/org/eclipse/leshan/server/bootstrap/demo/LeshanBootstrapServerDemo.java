@@ -293,11 +293,11 @@ public class LeshanBootstrapServerDemo {
         }
 
         // get X509 info
-        X509Certificate certificate = null;
+        X509Certificate[] certificate = null;
         if (cl.hasOption("cert")) {
             try {
                 privateKey = SecurityUtil.privateKey.readFromFile(cl.getOptionValue("prik"));
-                certificate = SecurityUtil.certificate.readFromFile(cl.getOptionValue("cert"));
+                certificate = SecurityUtil.certificateChain.readFromFile(cl.getOptionValue("cert"));
             } catch (Exception e) {
                 System.err.println("Unable to load X509 files : " + e.getMessage());
                 e.printStackTrace();
@@ -487,7 +487,7 @@ public class LeshanBootstrapServerDemo {
 
     public static void createAndStartServer(String webAddress, int webPort, String localAddress, Integer localPort,
             String secureLocalAddress, Integer secureLocalPort, String modelsFolderPath, String configFilename,
-            boolean supportDeprecatedCiphers, PublicKey publicKey, PrivateKey privateKey, X509Certificate certificate,
+            boolean supportDeprecatedCiphers, PublicKey publicKey, PrivateKey privateKey, X509Certificate[] certificate,
             List<Certificate> trustStore, EstRegistrarConfig estRegistrarConfig) throws Exception {
         // Create Models
         List<ObjectModel> models = ObjectLoader.loadDefault();
@@ -507,12 +507,12 @@ public class LeshanBootstrapServerDemo {
         dtlsConfig.setRecommendedCipherSuitesOnly(!supportDeprecatedCiphers);
 
         // Create credentials;
-        X509Certificate serverCertificate = null;
+        X509Certificate[] serverCertificate = null;
         if (certificate != null) {
             // use X.509 mode (+ RPK)
             serverCertificate = certificate;
             builder.setPrivateKey(privateKey);
-            builder.setCertificateChain(new X509Certificate[] { serverCertificate });
+            builder.setCertificateChain(serverCertificate);
         } else if (publicKey != null) {
             // use RPK
             builder.setPublicKey(publicKey);
@@ -521,9 +521,9 @@ public class LeshanBootstrapServerDemo {
             try {
                 PrivateKey embeddedPrivateKey = SecurityUtil.privateKey
                         .readFromResource("credentials/bsserver_privkey.der");
-                serverCertificate = SecurityUtil.certificate.readFromResource("credentials/bsserver_cert.der");
+                serverCertificate = SecurityUtil.certificateChain.readFromResource("credentials/bsserver_cert.der");
                 builder.setPrivateKey(embeddedPrivateKey);
-                builder.setCertificateChain(new X509Certificate[] { serverCertificate });
+                builder.setCertificateChain(serverCertificate);
             } catch (Exception e) {
                 LOG.error("Unable to load embedded X.509 certificate.", e);
                 System.exit(-1);
@@ -590,7 +590,7 @@ public class LeshanBootstrapServerDemo {
         if (publicKey != null) {
             serverServletHolder = new ServletHolder(new ServerServlet(bsServer, publicKey));
         } else {
-            serverServletHolder = new ServletHolder(new ServerServlet(bsServer, serverCertificate));
+            serverServletHolder = new ServletHolder(new ServerServlet(bsServer, serverCertificate[0]));
         }
         root.addServlet(serverServletHolder, "/api/server/*");
 
