@@ -223,6 +223,6 @@ public class SenMLCborPackSerDes {
     }
 
     CBORObject newMap() {
-        return CBORObject.NewMap();
+        return CBORObject.NewOrderedMap();
     }
 }
