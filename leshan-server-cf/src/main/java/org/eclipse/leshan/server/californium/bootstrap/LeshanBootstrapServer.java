@@ -113,11 +113,16 @@ public class LeshanBootstrapServer {
         coapServer.add(bsResource);
 
         if (coapEstHandler != null) {
+            /* Default COAP-EST service location is under /.well-known/est/ */
             CoapResource wellKnownResource = new WellKnownResource();
-
             wellKnownResource.add(new EstServiceResource(coapEstHandler));
-
             coapServer.add(wellKnownResource);
+
+            /*
+             * COAP-EST specification indicates that resource could be in location /est when discovery is used -- it is
+             * also used in some examples in the specification... just in case someone takes a shortcut...
+             */
+            coapServer.add(new EstServiceResource(coapEstHandler));
         }
     }
 
