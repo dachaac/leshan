@@ -72,7 +72,7 @@ public class X509BootstrapSessionManager extends DefaultBootstrapSessionManager 
 
         BootstrapConfig.ServerConfig serverConfig = new BootstrapConfig.ServerConfig();
 
-        serverConfig.shortId = 123;
+        serverConfig.shortId = 1;
 
         bootstrapConfig.servers.put(0, serverConfig);
 
@@ -95,7 +95,7 @@ public class X509BootstrapSessionManager extends DefaultBootstrapSessionManager 
         lwm2mServer.bootstrapServer = false;
         lwm2mServer.securityMode = SecurityMode.EST;
         lwm2mServer.publicKeyOrId = new byte[0];
-        lwm2mServer.serverId = 123;
+        lwm2mServer.serverId = 1;
         lwm2mServer.certificateUsage = this.autoregCertificateUsage;
         if (autoregServerCert != null) {
             try {
