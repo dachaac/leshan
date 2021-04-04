@@ -80,7 +80,7 @@ public class X509BootstrapSessionManager extends DefaultBootstrapSessionManager 
         bsServer.uri = this.autoregBootstrapUri;
         bsServer.bootstrapServer = true;
         bsServer.securityMode = SecurityMode.EST;
-        bsServer.serverId = 123;
+        bsServer.serverId = null;
         bsServer.certificateUsage = CertificateUsage.CA_CONSTRAINT;
         if (autoregServerCert != null) {
             try {
